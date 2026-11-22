@@ -2440,9 +2440,6 @@ body:has(.rzh.drag) {
     14px system-ui,
     sans-serif;
 }
-.cb-inv input {
-  cursor: text;
-}
 #cb-pop input:focus,
 .cb-card input:focus,
 .cb-form input:focus {

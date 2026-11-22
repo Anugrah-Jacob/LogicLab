@@ -712,13 +712,11 @@
     renderPopover();
   }
   async function addInvite() {
-    const emailInput = $('#cb-em');
-    const email = emailInput?.value?.trim() || '';
+    const email = ($('#cb-em') || {}).value?.trim() || '';
     const role = ($('#cb-inv-role') || {}).value || 'edit';
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return toast('Enter a valid email address.', 'warn');
     ui.busy = 'invite';
     ui.note = '';
-    emailInput && emailInput.blur();
     renderPopover();
     try {
       share = (await api('/collab/share', { action: 'invite', pid: host.pid(), email, role })).share;
@@ -976,18 +974,6 @@
   pop.id = 'cb-pop';
   pop.hidden = true;
   document.body.append(pop);
-  pop.addEventListener('focusout', () => {
-    setTimeout(() => {
-      const active = document.activeElement;
-      if (
-        ui.open &&
-        (!active ||
-          !pop.contains(active) ||
-          !active.matches('input, textarea, select'))
-      )
-        renderPopover();
-    }, 0);
-  });
   const chatBox = document.createElement('div');
   chatBox.id = 'cb-chat';
   chatBox.hidden = true;
@@ -1105,8 +1091,6 @@
   };
   function renderPopover() {
     if (pop.hidden) return;
-    const active = document.activeElement;
-    if (active && pop.contains(active) && active.matches('input, textarea, select')) return;
     const u = host.user(),
       owner = !S || S.owner,
       acc = accessOf(share);
@@ -1153,7 +1137,7 @@
           '</div>';
       }
       h +=
-        '<div class="cb-inv"><input id="cb-em" type="text" inputmode="email" placeholder="Invite by email" aria-label="Invite by email" autocomplete="off" autocapitalize="off" spellcheck="false" /><select id="cb-inv-role" aria-label="Invitation access"><option value="edit">Can edit</option><option value="view">Can view</option></select><button class="cb-btn cb-pri" id="cb-add-invite" ' +
+        '<div class="cb-inv"><input id="cb-em" type="email" placeholder="Invite by email" autocomplete="email" /><select id="cb-inv-role" aria-label="Invitation access"><option value="edit">Can edit</option><option value="view">Can view</option></select><button class="cb-btn cb-pri" id="cb-add-invite" ' +
         (ui.busy === 'invite' ? 'disabled' : '') +
         '>Add</button></div>';
       h +=
@@ -1307,7 +1291,13 @@
         setTimeout(() => g('cb-copy') && (g('cb-copy').textContent = 'Copy link'), 1800);
       };
     if (g('cb-add-invite')) g('cb-add-invite').onclick = addInvite;
-    if (g('cb-em')) g('cb-em').onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), addInvite());
+    if (g('cb-em'))
+      g('cb-em').onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addInvite();
+        }
+      };
     pop.querySelectorAll('[data-remove]').forEach((b) => (b.onclick = () => removeInvite(b.dataset.remove)));
     pop.querySelectorAll('[data-mail]').forEach(
       (b) =>

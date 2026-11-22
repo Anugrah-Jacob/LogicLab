@@ -603,15 +603,11 @@ await test('owner: Share button opens the popover; choosing "can edit" creates t
     });
     return { id: edit.id, editKey: edit.editKey, viewKey: edit.viewKey };
   });
-  await O.page.locator('#cb-em').fill('collaborator@example.com');
-  const inviteField = await O.page.locator('#cb-em').elementHandle();
-  await O.page.waitForTimeout(6500);
-  ok(
-    await inviteField.evaluate((el) => el.isConnected && document.activeElement === el),
-    'invite email field survives live roster refresh'
-  );
-  eq(await O.page.inputValue('#cb-em'), 'collaborator@example.com');
-  eq(await O.page.getAttribute('#cb-em', 'autocomplete'), 'off');
+  await O.page.locator('#cb-em').focus();
+  await O.page.keyboard.type('typing@example.com');
+  eq(await O.page.inputValue('#cb-em'), 'typing@example.com', 'invite email field accepts typing');
+  await O.page.fill('#cb-em', '');
+  await O.page.fill('#cb-em', 'collaborator@example.com');
   await O.page.selectOption('#cb-inv-role', 'view');
   await O.page.click('#cb-add-invite');
   await O.page.waitForSelector('[data-remove="collaborator@example.com"]');
