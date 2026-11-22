@@ -3,4 +3,4 @@ Allow: /
 Disallow: /api/
 Disallow: /admin/
 
-Sitemap: https://logiclab-8xy.pages.dev/sitemap.xml
+Sitemap: https://logiclab.anogre.com/sitemap.xml

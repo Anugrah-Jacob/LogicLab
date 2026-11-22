@@ -31,7 +31,7 @@ await test('welcome screen shows the headline, templates, recents area and FAQ',
   ok(n === 38, 'expected 37 examples + blank card, got ' + n);
   eq(await pg.locator('#faq details').count(), 6);
   ok((await pg.locator('#wf button').count()) >= 7, 'category chips');
-  eq(await pg.locator('.github-link').getAttribute('href'), 'https://github.com/Anugrahjacob777?tab=repositories');
+  eq(await pg.locator('.github-link').getAttribute('href'), 'https://github.com/Anugrah-Jacob/LogicLab');
   eq(await pg.locator('.github-link use').getAttribute('href'), '#icon-github');
   eq(await pg.locator('.github-link').getAttribute('target'), '_blank');
   eq(await pg.locator('.github-link').getAttribute('rel'), 'noopener noreferrer');

@@ -4,7 +4,7 @@
  */
 window.LOGICLAB_CONFIG = {
   siteName: 'LogicLab',
-  repoUrl: '', // e.g. 'https://github.com/your-name/logiclab'
+  repoUrl: 'https://github.com/Anugrah-Jacob/LogicLab',
   ads: {
     enabled: false, // keep false until you have an ad account, consent banner and updated CSP (docs/MONETIZATION.md)
     client: '', // e.g. 'ca-pub-0000000000000000'

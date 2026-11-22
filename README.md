@@ -6,6 +6,8 @@ It works offline, and signed-in users can sync projects and use an AI assistant.
 
 **Live app:** [https://logiclab.anogre.com/](https://logiclab.anogre.com/)
 
+**Source code:** [github.com/Anugrah-Jacob/LogicLab](https://github.com/Anugrah-Jacob/LogicLab) · MIT License
+
 - **Simulator:** switches, clocks, LEDs, voltmeters, AND/OR/NOT/NAND/NOR/XOR/XNOR gates, D/T/JK flip-flops, shift registers
 - **Analysis:** truth tables, Boolean equations, K-maps, state tables, waveform viewer, oscillation warning
 - **Real-voltage mode:** logic levels, RC rise/fall times and 30%/70% thresholds
