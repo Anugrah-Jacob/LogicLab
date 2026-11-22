@@ -134,7 +134,11 @@ choose another project name and use that).
    ```bash
    npx wrangler pages secret put JWT_SECRET --project-name logiclab
    npx wrangler pages secret put ADMIN_SETUP_CODE --project-name logiclab
+   npx wrangler pages secret put GEMINI_API_KEY --project-name logiclab
    ```
+
+   `GEMINI_API_KEY` is the backup for Groq rate limits. LogicLab keeps Groq as the primary provider and returns to it
+   automatically when its shared limit resets. If Gemini fallback is not needed, omit this secret.
 
 7. Deploy once more so the secrets take effect:
 

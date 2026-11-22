@@ -24,6 +24,13 @@ export const PROVIDERS = {
     model: 'llama-3.3-70b-versatile',
     models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
   },
+  gemini: {
+    label: 'Google Gemini',
+    kind: 'openai',
+    base: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    model: 'gemini-2.5-flash',
+    models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+  },
   openrouter: {
     label: 'OpenRouter',
     kind: 'openai',
@@ -58,6 +65,7 @@ export async function loadSettings(env) {
     model: raw.ai_model || (provider === 'anthropic' && env.AI_MODEL) || PROVIDERS[provider].model,
     baseUrl: raw.ai_base_url || '',
     keyBlob: raw.ai_key || '',
+    geminiKeyBlob: raw.ai_gemini_key || '',
     dailyLimit: Number(raw.ai_daily_limit) || Number(env.AI_DAILY_LIMIT) || 60,
     aiEnabled: raw.ai_enabled !== '0',
     signupsOpen: raw.signups_open !== '0'
@@ -72,14 +80,18 @@ export async function saveSetting(env, key, value) {
 
 /** The API key to use: the one saved in the admin panel, or the ANTHROPIC_API_KEY secret as a fallback. */
 export async function resolveKey(env, settings) {
-  if (settings.keyBlob) {
+  const keyBlob =
+    settings.provider === 'gemini' && !settings.keyBlob ? settings.geminiKeyBlob || '' : settings.keyBlob;
+  if (keyBlob) {
     try {
-      return await unseal(env, settings.keyBlob);
+      return await unseal(env, keyBlob);
     } catch {
       return '';
     }
   }
-  return settings.provider === 'anthropic' ? env.ANTHROPIC_API_KEY || '' : '';
+  if (settings.provider === 'anthropic') return env.ANTHROPIC_API_KEY || '';
+  if (settings.provider === 'gemini') return env.GEMINI_API_KEY || '';
+  return '';
 }
 
 export const aiReady = async (env, settings) =>
@@ -103,6 +115,10 @@ export function validBaseUrl(value) {
 
 export async function storeKey(env, plain) {
   await saveSetting(env, 'ai_key', await seal(env, plain));
+}
+
+export async function storeGeminiKey(env, plain) {
+  await saveSetting(env, 'ai_gemini_key', await seal(env, plain));
 }
 
 export const keyHint = (plain) => (plain ? '••••' + plain.slice(-4) : '');

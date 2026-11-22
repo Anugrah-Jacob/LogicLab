@@ -116,7 +116,7 @@
         }
       ]
     </script>
-    <link rel="stylesheet" href="css/app.css?v=c09b6664" />
+    <link rel="stylesheet" href="css/app.css?v=5a8c1b11" />
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
@@ -144,10 +144,22 @@
         <path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       </symbol>
       <symbol id="icon-book" viewBox="0 0 24 24">
-        <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22zM4 5.5v14A2.5 2.5 0 0 1 6.5 17H20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path
+          d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22zM4 5.5v14A2.5 2.5 0 0 1 6.5 17H20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        />
       </symbol>
       <symbol id="icon-pointer" viewBox="0 0 24 24">
-        <path d="M5 3v17l4.8-4.7 3.2 5.2 3-1.8-3.1-5.2L20 13z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path
+          d="M5 3v17l4.8-4.7 3.2 5.2 3-1.8-3.1-5.2L20 13z"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        />
       </symbol>
       <symbol id="icon-github" viewBox="0 0 24 24">
         <path
@@ -166,7 +178,12 @@
       </symbol>
       <symbol id="icon-keyboard" viewBox="0 0 24 24">
         <rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
-        <path d="M6 9h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M8 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        <path
+          d="M6 9h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M8 15h8"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
       </symbol>
       <symbol id="ll-mark" viewBox="0 0 116 100">
         <path d="M36 4H88L81 21H48Q42 21 41 27L36 70Q35 79 43 79H76L69 96H27Q7 96 9 76L17 24Q19 4 36 4Z" fill="url(#llg)" />
@@ -204,17 +221,25 @@
       </div>
       <div class="hr">
         <button id="undo" title="Undo (Ctrl+Z)">↶</button><button id="redo" title="Redo (Ctrl+Shift+Z)">↷</button
-        ><button id="pwr" class="pw on" title="Main power: switch the whole circuit on or off" aria-label="Power ON"><svg class="ui-icon" aria-hidden="true"><use href="#icon-power" /></svg><span>ON</span></button
+        ><button id="pwr" class="pw on" title="Main power: switch the whole circuit on or off" aria-label="Power ON">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-power" /></svg><span>ON</span></button
         ><button id="rst" title="Reset: restart the circuit and the waveform from zero">↺ Reset</button
-        ><button id="sim" class="gh" title="Pause or resume the simulation">❚❚ Pause</button><button id="aib" class="gh" title="LogicLab AI">✦ AI</button
+        ><button id="sim" class="gh" title="Pause or resume the simulation">❚❚ Pause</button
+        ><button id="aib" class="gh" title="LogicLab AI">✦ AI</button
         ><span class="dd"
           ><button id="mo" title="More" aria-label="More">⋮</button>
           <div id="mm" hidden>
-            <button id="nw">+ New project</button><button id="op"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Open file…</button><button id="rsz">▭ Reset panel sizes</button
-            ><button id="clr">Clear page</button
+            <button id="nw">+ New project</button
+            ><button id="op">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Open file…</button
+            ><button id="rsz">▭ Reset panel sizes</button><button id="clr">Clear page</button
             ><button id="cvn" title="Rebuild every gate from NAND gates">⛓ Convert to NAND-only</button
             ><button id="cvr" title="Rebuild every gate from NOR gates">⛓ Convert to NOR-only</button
-            ><button id="th"><svg class="ui-icon" aria-hidden="true"><use href="#icon-theme" /></svg> Toggle theme</button><button id="hlp"><svg class="ui-icon" aria-hidden="true"><use href="#icon-keyboard" /></svg> Shortcuts &amp; help</button>
+            ><button id="th">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-theme" /></svg> Toggle theme</button
+            ><button id="hlp">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-keyboard" /></svg> Shortcuts &amp; help
+            </button>
           </div></span
         ><button id="av" class="avb">Sign in</button>
       </div>
@@ -226,7 +251,8 @@
         <div id="poff" hidden>Power off · every output is 0 V</div>
         <canvas id="cv" aria-label="Circuit canvas" role="img"></canvas><canvas id="pcb"></canvas>
         <div class="fl" id="tb">
-          <button id="tsel" class="on" title="Select (drag a box to multi-select)" aria-label="Select"><svg class="ui-icon" aria-hidden="true"><use href="#icon-pointer" /></svg></button
+          <button id="tsel" class="on" title="Select (drag a box to multi-select)" aria-label="Select">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-pointer" /></svg></button
           ><button id="tpan" title="Pan (drag the canvas)">✥</button><button id="tpal" class="on" title="Show or hide parts">▦</button
           ><button id="tan" class="on" title="Show or hide analysis">◧</button
           ><button id="snp" class="on" title="Snap to invisible grid">⌗</button
@@ -320,20 +346,32 @@
           </div>
         </div>
         <div style="height: 14px"></div>
-        <button class="nv on" data-s="wt">▦ Templates</button><button class="nv" data-s="wrc"><svg class="ui-icon" aria-hidden="true"><use href="#icon-clock" /></svg> Recent Projects</button
-        ><a class="nv" href="learn/"><svg class="ui-icon" aria-hidden="true"><use href="#icon-book" /></svg> Learn</a>
+        <button class="nv on" data-s="wt">▦ Templates</button
+        ><button class="nv" data-s="wrc">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-clock" /></svg> Recent Projects</button
+        ><a class="nv" href="learn/"
+          ><svg class="ui-icon" aria-hidden="true"><use href="#icon-book" /></svg> Learn</a
+        >
         <div class="nl">Tools</div>
         <button class="nt" data-v="sch">▷ Circuit Editor</button><button class="nt" data-v="tr">∿ Transistor</button
         ><button class="nt" data-v="bb">▤ Breadboard</button><button class="nt" data-v="pcb">▣ PCB</button>
         <div class="nl">Resources</div>
-        <button class="nv" id="wexamples" data-s="wt">Examples</button><button id="wh"><svg class="ui-icon" aria-hidden="true"><use href="#icon-keyboard" /></svg> Shortcuts</button>
+        <button class="nv" id="wexamples" data-s="wt">Examples</button
+        ><button id="wh">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-keyboard" /></svg> Shortcuts
+        </button>
         <div style="flex: 1"></div>
-        <button id="wn" class="pr big">+ New Project</button><button id="wo" class="big"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Open File…</button>
+        <button id="wn" class="pr big">+ New Project</button
+        ><button id="wo" class="big">
+          <svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Open File…
+        </button>
       </aside>
       <section id="wmain">
         <div class="wtop">
           <div class="sbx"><span>⌕</span><input type="search" id="wq" placeholder="Search templates and projects…" /></div>
-          <button id="wth" title="Toggle theme" aria-label="Toggle theme"><svg class="ui-icon" aria-hidden="true"><use href="#icon-theme" /></svg></button><button id="wav" class="avb">Sign in</button>
+          <button id="wth" title="Toggle theme" aria-label="Toggle theme">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-theme" /></svg></button
+          ><button id="wav" class="avb">Sign in</button>
         </div>
         <div id="wbn" hidden>
           <span>☁ Sign in to sync your projects across devices and to use LogicLab AI. Everything also works offline.</span
@@ -345,16 +383,16 @@
             <h1>Build, Simulate &amp; Learn<br /><em>Digital Circuits</em></h1>
             <p>Go from your first logic gate to complete digital systems. Design, simulate, and understand it all in one place.</p>
             <div class="hb">
-              <button id="wn2" class="pr big">Start building <span aria-hidden="true">→</span></button><button id="wex" class="big">Explore examples</button
-              ><button id="wai" class="big ai">✦ Build with AI</button>
+              <button id="wn2" class="pr big">Start building <span aria-hidden="true">→</span></button
+              ><button id="wex" class="big">Explore examples</button><button id="wai" class="big ai">✦ Build with AI</button>
             </div>
-            <div class="hero-points"><span><b>✓</b> Live simulation</span><span><b>✓</b> Truth tables &amp; waveforms</span><span><b>✓</b> Works offline</span></div>
-            <a
-              class="github-link"
-              href="https://github.com/Anugrah-Jacob/LogicLab"
-              target="_blank"
-              rel="noopener noreferrer"
-            ><svg class="ui-icon" aria-hidden="true"><use href="#icon-github" /></svg> Open source on GitHub <span aria-hidden="true">↗</span></a>
+            <div class="hero-points">
+              <span><b>✓</b> Live simulation</span><span><b>✓</b> Truth tables &amp; waveforms</span><span><b>✓</b> Works offline</span>
+            </div>
+            <a class="github-link" href="https://github.com/Anugrah-Jacob/LogicLab" target="_blank" rel="noopener noreferrer"
+              ><svg class="ui-icon" aria-hidden="true"><use href="#icon-github" /></svg> Open source on GitHub
+              <span aria-hidden="true">↗</span></a
+            >
           </div>
           <div class="hi">
             <svg viewBox="0 0 360 240" fill="none">
@@ -393,7 +431,11 @@
           <div id="wc"></div>
         </div>
         <div class="wt card" id="wrc">
-          <div class="wh"><h3><svg class="ui-icon" aria-hidden="true"><use href="#icon-clock" /></svg> Recent Projects</h3></div>
+          <div class="wh">
+            <h3>
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-clock" /></svg> Recent Projects
+            </h3>
+          </div>
           <div id="rl"></div>
         </div>
         <section class="wt card faq" id="faq" aria-labelledby="faqh">
@@ -514,7 +556,17 @@
     </div>
     <aside id="ai" hidden>
       <div class="ah">
-        <span>✦</span><b>LogicLab AI</b><em>Agentic AI</em><button id="ax" title="Minimize" aria-label="Close AI">–</button>
+        <span class="ai-brand-icon" aria-hidden="true"
+          ><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="8" y="8" width="16" height="16" rx="3" />
+            <path d="M12 12h8v8h-8zM13 2v5m6-5v5M13 25v5m6-5v5M2 13h5m-5 6h5m18-6h5m-5 6h5" /></svg
+        ></span>
+        <div class="ai-brand">
+          <b>LogicLab <i>AI</i></b
+          ><small>Agentic Digital Electronics Assistant</small>
+        </div>
+        <em>⚡ Agentic AI</em><span id="ai-provider-status" class="ai-status">Ready</span>
+        <button id="ax" title="Minimize" aria-label="Close AI">–</button>
       </div>
       <div id="am">
         <div id="ah0">
@@ -546,7 +598,7 @@
       </div>
       <form id="af">
         <textarea id="aq" rows="1" placeholder="Ask anything about digital electronics…" aria-label="Message LogicLab AI"></textarea
-        ><button class="pr" id="as" aria-label="Send">➤</button>
+        ><span class="ai-compose-spark" aria-hidden="true">✦</span><button class="pr" id="as" aria-label="Send">➤</button>
       </form>
     </aside>
     <div id="toasts" aria-live="polite"></div>
@@ -555,11 +607,11 @@
       ><button data-n="ai" class="fab" aria-label="LogicLab AI">✦</button><button data-n="wave"><span>∿</span>Waveform</button
       ><button data-n="side"><span>⋯</span>More</button>
     </nav>
-    <script defer src="js/config.js?v=c09b6664"></script>
-    <script defer src="js/examples.js?v=c09b6664"></script>
-    <script defer src="js/ads.js?v=c09b6664"></script>
-    <script defer src="js/app.js?v=c09b6664"></script>
-    <script defer src="js/merge.js?v=c09b6664"></script>
-    <script defer src="js/collab.js?v=c09b6664"></script>
+    <script defer src="js/config.js?v=5a8c1b11"></script>
+    <script defer src="js/examples.js?v=5a8c1b11"></script>
+    <script defer src="js/ads.js?v=5a8c1b11"></script>
+    <script defer src="js/app.js?v=5a8c1b11"></script>
+    <script defer src="js/merge.js?v=5a8c1b11"></script>
+    <script defer src="js/collab.js?v=5a8c1b11"></script>
   </body>
 </html>

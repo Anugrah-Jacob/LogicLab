@@ -18,6 +18,7 @@ import {
   loadSettings,
   saveSetting,
   storeKey,
+  storeGeminiKey,
   resolveKey,
   effectiveBase,
   validBaseUrl,
@@ -348,6 +349,11 @@ export async function deleteProjectAdmin(env, uid, id) {
 export async function getSettings(env) {
   const s = await loadSettings(env);
   const key = await resolveKey(env, s);
+  const geminiKey = await resolveKey(env, {
+    provider: 'gemini',
+    keyBlob: '',
+    geminiKeyBlob: s.geminiKeyBlob
+  });
   return json({
     provider: s.provider,
     model: s.model,
@@ -356,6 +362,8 @@ export async function getSettings(env) {
     hasKey: !!key,
     keyHint: keyHint(key),
     keySource: s.keyBlob ? 'admin' : key ? 'environment' : '',
+    hasGeminiFallback: !!geminiKey,
+    geminiKeyHint: keyHint(geminiKey),
     dailyLimit: s.dailyLimit,
     aiEnabled: s.aiEnabled,
     signupsOpen: s.signupsOpen,
@@ -383,6 +391,9 @@ export async function putSettings(request, env) {
   }
   if (typeof b.apiKey === 'string' && b.apiKey.trim()) await storeKey(env, b.apiKey.trim());
   if (b.clearKey === true) await saveSetting(env, 'ai_key', '');
+  if (typeof b.geminiApiKey === 'string' && b.geminiApiKey.trim())
+    await storeGeminiKey(env, b.geminiApiKey.trim());
+  if (b.clearGeminiKey === true) await saveSetting(env, 'ai_gemini_key', '');
   if (b.dailyLimit !== undefined)
     await saveSetting(env, 'ai_daily_limit', Math.max(1, Math.min(100000, Number(b.dailyLimit) | 0 || 60)));
   if (typeof b.aiEnabled === 'boolean') await saveSetting(env, 'ai_enabled', b.aiEnabled ? 1 : 0);

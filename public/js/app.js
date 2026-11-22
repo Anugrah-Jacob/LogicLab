@@ -4813,6 +4813,7 @@
     if (!r.ok) {
       const e = new Error((j && j.error) || 'Server error (' + r.status + ')');
       e.status = r.status;
+      e.retryAfter = Number((j && j.retryAfter) || r.headers.get('retry-after')) || 0;
       throw e;
     }
     return j;
@@ -5512,6 +5513,101 @@
     return m.slice(i);
   }
   const DOTS = '<span class="dots"><i></i><i></i><i></i></span>';
+  const AI_RETRY_DELAYS = [10, 20, 30];
+  const aiWait = (node, seconds, message) =>
+    new Promise((resolve) => {
+      let remaining = seconds;
+      node.className = 'bb a ai-retrying';
+      node.innerHTML =
+        '<span class="ai-retry-message">' +
+        esc(message) +
+        '</span><span class="ai-retry-count">Automatic retry in ' +
+        remaining +
+        's</span><button type="button" class="ai-retry-now">Retry now</button>';
+      const count = node.querySelector('.ai-retry-count');
+      const button = node.querySelector('.ai-retry-now');
+      let timer;
+      const finish = () => {
+        clearInterval(timer);
+        button.removeEventListener('click', finish);
+        resolve();
+      };
+      button.addEventListener('click', finish);
+      timer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) finish();
+        else count.textContent = 'Automatic retry in ' + remaining + 's';
+      }, 1000);
+    });
+  async function aiRequest(body, node) {
+    let retry = 0;
+    while (true) {
+      try {
+        return await api('/ai', { method: 'POST', body });
+      } catch (e) {
+        if (e.status && (![429, 502, 503, 504].includes(e.status) || (e.status === 429 && !e.retryAfter)))
+          throw e;
+        if (retry >= AI_RETRY_DELAYS.length) throw e;
+        const delay = Math.max(AI_RETRY_DELAYS[retry], Math.min(120, e.retryAfter || 0));
+        await aiWait(node, delay, e.message || 'The AI service is temporarily unavailable.');
+        retry++;
+      }
+    }
+  }
+  function showAIError(error, step, requestBody, workflow) {
+    const message = error.status ? error.message : 'Could not reach the AI service. Check your connection.';
+    const retryable =
+      !error.status ||
+      [502, 503, 504].includes(error.status) ||
+      (error.status === 429 && error.retryAfter > 0);
+    const node = aiAdd(
+      'err',
+      '<span>' +
+        esc(message) +
+        '</span>' +
+        (retryable
+          ? '<button type="button" id="aretry" class="ai-retry-now">Continue this request</button>'
+          : '')
+    );
+    const retryButton = node.querySelector('#aretry');
+    if (retryButton)
+      retryButton.onclick = async () => {
+        node.remove();
+        AI.busy = 1;
+        $('#as').disabled = true;
+        try {
+          await runAgent(step, requestBody, workflow);
+        } finally {
+          AI.busy = 0;
+          $('#as').disabled = false;
+        }
+      };
+    if (error.status === 401) {
+      setUser(null);
+      authOpen('login', 'Your session expired. Sign in again.');
+    }
+  }
+  function aiWorkflow() {
+    const node = aiAdd(
+      'workflow',
+      '<div class="ai-workflow-head"><span class="ai-workflow-icon">⌘</span><b>Running agentic workflow…</b><span class="ai-workflow-state">Running</span></div><div class="ai-workflow-steps"></div>'
+    );
+    return node;
+  }
+  function aiWorkflowStep(node, label) {
+    const step = document.createElement('div');
+    step.className = 'ai-workflow-step';
+    step.innerHTML = '<span class="ai-step-check">✓</span><span class="ai-step-icon">⚙</span><span></span>';
+    step.lastElementChild.textContent = label;
+    node.querySelector('.ai-workflow-steps').append(step);
+    node.scrollIntoView({ block: 'end' });
+  }
+  function finishAIWorkflow(node) {
+    if (!node) return;
+    node.classList.add('done');
+    node.querySelector('.ai-workflow-state').textContent = 'Complete';
+    node.querySelector('.ai-workflow-icon').textContent = '✓';
+  }
   /**
    * Send a chat message to LogicLab AI and run the tool loop until the model gives a final answer.
    */
@@ -5524,64 +5620,71 @@
     $('#as').disabled = true;
     aiAdd('u', esc(text));
     AI.msgs.push({ role: 'user', content: text });
-    let th = aiAdd('a', DOTS);
     try {
-      for (let i = 0; i < 8; i++) {
-        const r = await api('/ai', {
-          method: 'POST',
-          body: {
-            messages: trimMsgs(),
-            context: ctxSummary(),
-            templates: WZ.tpl.map((t) => t.k + '=' + t.t).join('; ')
-          }
-        });
-        AI.msgs.push({ role: 'assistant', content: r.content });
-        const txt = r.content
-          .filter((b) => b.type == 'text')
-          .map((b) => b.text)
-          .join('\n')
-          .trim();
-        if (txt) th.innerHTML = mdx(txt);
-        else th.remove();
-        const uses = r.content.filter((b) => b.type == 'tool_use');
-        if (!uses.length) break;
-        const res = uses.map((u) => {
-          let out;
-          try {
-            out = execTool(u.name, u.input || {});
-          } catch (e) {
-            out = { error: String((e && e.message) || e) };
-          }
-          aiAdd('tool', '⚙ ' + toolLabel(u.name, out));
-          const o = { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out).slice(0, 7000) };
-          if (out.error) o.is_error = true;
-          return o;
-        });
-        AI.msgs.push({ role: 'user', content: res });
-        th = aiAdd('a', DOTS);
-      }
-      if (th.isConnected && th.querySelector('.dots')) th.remove();
-    } catch (e) {
-      if (th.isConnected) th.remove();
-      const d = aiAdd(
-        'err',
-        esc(e.status ? e.message : 'Could not reach the AI service. Check your connection.') +
-          ' <a href="#" id="aretry">Retry</a>'
-      );
-      const l = d.querySelector('#aretry');
-      l.onclick = (ev) => {
-        ev.preventDefault();
-        d.remove();
-        AI.msgs.pop();
-        aiSend(text);
-      };
-      if (e.status === 401) {
-        setUser(null);
-        authOpen('login', 'Your session expired. Sign in again.');
-      }
+      await runAgent(0);
+    } finally {
+      AI.busy = 0;
+      $('#as').disabled = false;
     }
-    AI.busy = 0;
-    $('#as').disabled = false;
+  }
+  async function runAgent(startStep, retryBody, resumedWorkflow = null) {
+    let node = aiAdd('a', DOTS);
+    let workflow = resumedWorkflow;
+    for (let i = startStep; i < 8; i++) {
+      const requestBody =
+        i === startStep && retryBody
+          ? retryBody
+          : {
+              messages: trimMsgs(),
+              context: ctxSummary(),
+              templates: WZ.tpl.map((t) => t.k + '=' + t.t).join('; ')
+            };
+      let r;
+      try {
+        r = await aiRequest(requestBody, node);
+      } catch (error) {
+        if (node.isConnected) node.remove();
+        showAIError(error, i, requestBody, workflow);
+        return;
+      }
+      if (r.provider)
+        $('#ai-provider-status').textContent =
+          r.provider === 'gemini' ? 'Gemini backup' : r.provider === 'groq' ? 'Groq ready' : 'Ready';
+      AI.msgs.push({ role: 'assistant', content: r.content });
+      const txt = r.content
+        .filter((b) => b.type == 'text')
+        .map((b) => b.text)
+        .join('\n')
+        .trim();
+      if (txt) {
+        node.className = 'bb a';
+        node.innerHTML = mdx(txt);
+      } else node.remove();
+      const uses = r.content.filter((b) => b.type == 'tool_use');
+      if (!uses.length) {
+        finishAIWorkflow(workflow);
+        return;
+      }
+      workflow = workflow || aiWorkflow();
+      if (workflow.querySelector('.ai-workflow-steps').childElementCount === 0)
+        aiWorkflowStep(workflow, 'Analyzed the request');
+      const res = uses.map((u) => {
+        let out;
+        try {
+          out = execTool(u.name, u.input || {});
+        } catch (e) {
+          out = { error: String((e && e.message) || e) };
+        }
+        aiWorkflowStep(workflow, toolLabel(u.name, out));
+        const o = { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out).slice(0, 7000) };
+        if (out.error) o.is_error = true;
+        return o;
+      });
+      AI.msgs.push({ role: 'user', content: res });
+      node = aiAdd('a', DOTS);
+    }
+    if (node.isConnected && node.querySelector('.dots')) node.remove();
+    finishAIWorkflow(workflow);
   }
   function toolLabel(n, o) {
     if (o.error) return n.replace('_', ' ') + ' failed: ' + o.error;

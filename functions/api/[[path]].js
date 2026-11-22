@@ -1,6 +1,6 @@
 // LogicLab API (Cloudflare Pages Function, served under /api/*). This file is only the router;
 // the logic lives in /server. Bindings and secrets: DB (D1), JWT_SECRET, ADMIN_SETUP_CODE, and optionally
-// ANTHROPIC_API_KEY (the AI provider and key are normally set in the admin panel). Optional: MONGO_API_URL +
+// ANTHROPIC_API_KEY or GEMINI_API_KEY (Gemini is the Groq rate-limit fallback). Optional: MONGO_API_URL +
 // MONGO_API_KEY (or a service binding MONGO) to keep project bodies in MongoDB, ICE_SERVERS / TURN_KEY_ID + TURN_API_TOKEN
 // for WebRTC relays (see docs/COLLABORATION.md).
 import { json, fail } from '../../server/util.js';

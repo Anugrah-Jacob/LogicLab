@@ -794,9 +794,14 @@
         (s.hasKey ? 'Saved (' + esc(s.keyHint) + '). Type a new key to replace it.' : 'Paste your API key') +
         '"><small>' +
         (s.keySource === 'environment'
-          ? 'Using the ANTHROPIC_API_KEY secret. Saving a key here overrides it. '
+          ? 'Using a provider environment secret. Saving a key here overrides it. '
           : '') +
         'The key is encrypted in the database and is never shown again.</small></label>' +
+        '<label class="f">Gemini fallback API key<input class="in" type="password" name="geminiApiKey" autocomplete="new-password" placeholder="' +
+        (s.hasGeminiFallback
+          ? 'Saved (' + esc(s.geminiKeyHint) + '). Type a new key to replace it.'
+          : 'Paste a Gemini API key') +
+        '"><small>Used automatically when Groq is exhausted or unavailable. The key is encrypted and is never shown again.</small></label>' +
         '<label class="f">Daily AI requests per user<input class="in" type="number" min="1" name="dailyLimit" value="' +
         s.dailyLimit +
         '"></label>' +
@@ -806,6 +811,9 @@
         '<div id="aimsg"></div><div class="acts" style="justify-content:flex-start"><button class="btn pr">Save</button><button type="button" class="btn soft" data-act="testai">Test connection</button>' +
         (s.hasKey && s.keySource === 'admin'
           ? '<button type="button" class="btn danger" data-act="clearkey">Remove saved key</button>'
+          : '') +
+        (s.hasGeminiFallback
+          ? '<button type="button" class="btn danger" data-act="clearGeminiKey">Remove Gemini key</button>'
           : '') +
         '</div></form>' +
         '<div><form class="card" id="platform"><h2>' +
@@ -909,6 +917,7 @@
           aiEnabled: f.aiEnabled.checked
         };
         if (f.apiKey.value.trim()) body.apiKey = f.apiKey.value;
+        if (f.geminiApiKey.value.trim()) body.geminiApiKey = f.geminiApiKey.value;
         try {
           await api('/admin/settings', { method: 'PUT', body });
           toast('AI settings saved.', 'success');
@@ -1095,6 +1104,11 @@
     if (act === 'clearkey') {
       await api('/admin/settings', { method: 'PUT', body: { clearKey: true } });
       toast('Saved key removed.', 'success');
+      return route();
+    }
+    if (act === 'clearGeminiKey') {
+      await api('/admin/settings', { method: 'PUT', body: { clearGeminiKey: true } });
+      toast('Gemini fallback key removed.', 'success');
       return route();
     }
   }
