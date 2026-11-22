@@ -500,16 +500,15 @@ await test('admin panel: sign-in screen, access control, dashboard, users, setti
   await page.fill('[name=model]', 'mock-model');
   await page.fill('[name=baseUrl]', MOCK + '/v1');
   expectedKey = 'sk-test-UIKEY333';
-  await page.click('.provider-keys summary');
-  await page.locator('[data-provider-key=custom]').fill(expectedKey);
-  await page.locator('[data-provider-key=groq]').fill('gsk-test-UIKEY444');
+  await page.locator('[name=apiKey]').fill(expectedKey);
+  await page.selectOption('[name=fallbackProvider]', 'groq');
+  await page.locator('[name=fallbackApiKey]').fill('gsk-test-UIKEY444');
+  await page.locator('[name=nvidiaApiKey]').fill('nvapi-test-UIKEY555');
   await page.click('#aiform button.pr');
-  await page.waitForFunction(() =>
-    document.querySelector('[data-provider-key=custom]')?.placeholder.includes('••••')
-  );
+  await page.waitForFunction(() => document.querySelector('[name=apiKey]')?.placeholder.includes('••••'));
   ok(
-    (await page.locator('[data-provider-key=groq]').getAttribute('placeholder')).includes('••••'),
-    'other provider keys can be saved alongside the active provider'
+    (await page.locator('[name=fallbackApiKey]').getAttribute('placeholder')).includes('••••'),
+    'second provider key is saved separately from the primary key'
   );
   await page.click('[data-act=testai]');
   await page.waitForFunction(() => document.querySelector('#aimsg')?.innerText.includes('Connected'));

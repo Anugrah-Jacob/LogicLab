@@ -11,7 +11,11 @@ const upstream = http.createServer(async (req, res) => {
   for await (const _chunk of req) {
     /* consume provider body */
   }
-  calls.push({ path: req.url, authorization: req.headers.authorization });
+  calls.push({ path: req.url, hasAuthorization: !!req.headers.authorization });
+  if (req.url === '/gemini/chat/completions') {
+    res.writeHead(503, { 'content-type': 'application/json' });
+    return res.end(JSON.stringify({ error: { message: 'Gemini temporarily unavailable.' } }));
+  }
   if (req.url === '/v1/chat/completions' && groqStatus === 429) {
     res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });
     return res.end(JSON.stringify({ error: { message: 'rate limit reached' } }));
@@ -30,11 +34,14 @@ await saveSetting(app.env, 'ai_model', 'llama-3.3-70b-versatile');
 await saveSetting(app.env, 'ai_base_url', baseUrl + '/v1');
 await storeKey(app.env, 'groq-test-key');
 await storeProviderKey(app.env, 'gemini', 'gemini-test-key');
+await storeProviderKey(app.env, 'nvidia', 'nvidia-test-key');
 
 globalThis.fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input.url;
   if (url.startsWith('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'))
     return nativeFetch(baseUrl + '/gemini/chat/completions', init);
+  if (url.startsWith('https://integrate.api.nvidia.com/v1/chat/completions'))
+    return nativeFetch(baseUrl + '/nvidia/chat/completions', init);
   return nativeFetch(input, init);
 };
 
@@ -55,15 +62,16 @@ const ask = () =>
     body: JSON.stringify({ messages: [{ role: 'user', content: 'Continue the circuit task.' }] })
   });
 
-await test('Groq rate limit falls back to Gemini, then prefers recovered Groq again', async () => {
+await test('AI tries its second and NVIDIA third provider, then restores recovered Groq', async () => {
   const first = await ask();
   const fallback = await first.json();
-  eq([first.status, fallback.provider], [200, 'gemini']);
+  eq([first.status, fallback.provider], [200, 'nvidia']);
   eq(
     calls.map((call) => call.path),
-    ['/v1/chat/completions', '/gemini/chat/completions']
+    ['/v1/chat/completions', '/gemini/chat/completions', '/nvidia/chat/completions']
   );
-  eq(calls[1].authorization, 'Bearer gemini-test-key');
+  ok(calls[1].hasAuthorization, 'second provider uses a saved API key');
+  ok(calls[2].hasAuthorization, 'NVIDIA uses its saved API key');
 
   const row = await app.env.DB.prepare('SELECT v FROM settings WHERE k=?')
     .bind('ai_groq_rate_state:llama-3.3-70b-versatile')

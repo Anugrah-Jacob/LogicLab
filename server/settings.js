@@ -60,8 +60,19 @@ export async function loadSettings(env) {
   const raw = Object.fromEntries(rows.results.map((r) => [r.k, r.v]));
   const defaultProvider = PROVIDERS[env.AI_PROVIDER] ? env.AI_PROVIDER : 'groq';
   const provider = PROVIDERS[raw.ai_provider] ? raw.ai_provider : defaultProvider;
+  const fallbackProvider = Object.hasOwn(raw, 'ai_fallback_provider')
+    ? PROVIDERS[raw.ai_fallback_provider] &&
+      raw.ai_fallback_provider !== provider &&
+      raw.ai_fallback_provider !== 'nvidia'
+      ? raw.ai_fallback_provider
+      : ''
+    : provider === 'groq'
+      ? 'gemini'
+      : '';
   return {
     provider,
+    fallbackProvider,
+    thirdProvider: 'nvidia',
     model: raw.ai_model || (provider === 'anthropic' && env.AI_MODEL) || PROVIDERS[provider].model,
     baseUrl: raw.ai_base_url || '',
     keyBlob: raw.ai_key || '',

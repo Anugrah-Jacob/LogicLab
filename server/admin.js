@@ -385,6 +385,8 @@ export async function getSettings(env) {
   );
   return json({
     provider: s.provider,
+    fallbackProvider: s.fallbackProvider,
+    thirdProvider: s.thirdProvider,
     model: s.model,
     baseUrl: s.baseUrl,
     effectiveBase: effectiveBase(s),
@@ -407,10 +409,22 @@ export async function getSettings(env) {
 
 export async function putSettings(request, env) {
   const b = await readJson(request);
-  const currentProvider = (await loadSettings(env)).provider;
+  const currentSettings = await loadSettings(env);
+  const currentProvider = currentSettings.provider;
+  const nextProvider = b.provider === undefined ? currentProvider : b.provider;
   if (b.provider !== undefined) {
     if (!PROVIDERS[b.provider]) return fail(400, 'Unknown provider.');
     await saveSetting(env, 'ai_provider', b.provider);
+  }
+  if (b.fallbackProvider !== undefined) {
+    if (
+      b.fallbackProvider !== '' &&
+      (!PROVIDERS[b.fallbackProvider] ||
+        b.fallbackProvider === 'nvidia' ||
+        b.fallbackProvider === nextProvider)
+    )
+      return fail(400, 'Choose a different supported second provider.');
+    await saveSetting(env, 'ai_fallback_provider', b.fallbackProvider);
   }
   if (typeof b.model === 'string') await saveSetting(env, 'ai_model', b.model.trim().slice(0, 120));
   if (typeof b.baseUrl === 'string') {

@@ -259,16 +259,19 @@ function tokenBudget(settings, rateState = {}, tokenLimitOverride = null) {
   return { limitTokens: contextLimit, maxOutputTokens: 3000, maxInputTokens: contextLimit - 3128 };
 }
 
-function geminiFallbackSettings(settings) {
+function fallbackSettings(settings, provider) {
   return {
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
+    provider,
+    model: PROVIDERS[provider].model,
     baseUrl: '',
     keyBlob: '',
     geminiKeyBlob: settings.geminiKeyBlob || '',
     providerKeyBlobs: settings.providerKeyBlobs || {}
   };
 }
+
+const isRetryableProviderFailure = (error) =>
+  !(error instanceof ProviderError) || error.status === 413 || error.status === 429 || error.status >= 500;
 
 function estimateInputTokens(system, messages, tools) {
   const converted = toOpenAI(system, messages, tools);
@@ -579,8 +582,14 @@ export async function aiHandler(request, env, user) {
   let activeSettings = settings;
   try {
     const groqState = settings.provider === 'groq' ? await groqRateState(env, settings.model) : {};
-    const geminiSettings = settings.provider === 'groq' ? geminiFallbackSettings(settings) : null;
-    const geminiKey = geminiSettings ? await resolveKey(env, geminiSettings) : '';
+    const fallbackProviders = [...new Set([settings.fallbackProvider, 'nvidia'])]
+      .filter((provider) => provider && provider !== settings.provider && PROVIDERS[provider])
+      .map((provider) => {
+        const fallback = fallbackSettings(settings, provider);
+        return { settings: fallback, provider, key: null };
+      });
+    for (const fallback of fallbackProviders) fallback.key = await resolveKey(env, fallback.settings);
+    const configuredFallbacks = fallbackProviders.filter((fallback) => fallback.key);
     let activeKey = await resolveKey(env, settings);
     let rateState = groqState;
     let budget = tokenBudget(activeSettings, rateState);
@@ -593,19 +602,30 @@ export async function aiHandler(request, env, user) {
       settings.provider === 'groq' &&
       (!fitted.fits || fitted.estimatedTokens + budget.maxOutputTokens > budget.limitTokens);
     const groqExhausted = settings.provider === 'groq' && (groqCooldown > 0 || overGroqBudget);
-    if (groqExhausted && geminiKey) {
-      activeSettings = geminiSettings;
-      activeKey = geminiKey;
-      rateState = {};
-      budget = tokenBudget(activeSettings);
-      fitted = fitMessages(system, body.messages, TOOLS, budget.maxInputTokens);
+    if (groqExhausted) {
+      for (const fallback of configuredFallbacks) {
+        const fallbackBudget = tokenBudget(fallback.settings);
+        const fallbackMessages = fitMessages(system, body.messages, TOOLS, fallbackBudget.maxInputTokens);
+        if (
+          fallbackMessages.fits &&
+          (!fallbackBudget.limitTokens ||
+            fallbackMessages.estimatedTokens + fallbackBudget.maxOutputTokens <= fallbackBudget.limitTokens)
+        ) {
+          activeSettings = fallback.settings;
+          activeKey = fallback.key;
+          rateState = {};
+          budget = fallbackBudget;
+          fitted = fallbackMessages;
+          break;
+        }
+      }
     }
-    if (groqCooldown > 0 && !geminiKey) {
+    if (groqCooldown > 0 && !configuredFallbacks.length) {
       const retryAfter = Math.max(1, Math.ceil(groqCooldown / 1000));
       return json(
         {
           error:
-            'Groq is temporarily rate-limited. Add the GEMINI_API_KEY secret to enable automatic fallback, or retry after the Groq limit resets.',
+            'Groq is temporarily rate-limited. Configure a second provider key in Admin Settings, or retry after the Groq limit resets.',
           retryAfter
         },
         429,
@@ -633,7 +653,7 @@ export async function aiHandler(request, env, user) {
           return json(
             {
               error:
-                'Groq is temporarily rate-limited. Add the GEMINI_API_KEY secret to enable automatic fallback, or retry after the Groq limit resets.',
+                'Groq is temporarily rate-limited. Configure a second provider key in Admin Settings, or retry after the Groq limit resets.',
               retryAfter: Math.ceil(delay / 1000)
             },
             429,
@@ -662,58 +682,60 @@ export async function aiHandler(request, env, user) {
         e.rate = rate;
         await saveGroqRateState(env, settings.model, rate);
       }
-      if (
-        activeSettings.provider === 'groq' &&
-        geminiKey &&
-        e instanceof ProviderError &&
-        (e.status === 429 || e.status >= 500)
-      ) {
-        activeSettings = geminiSettings;
-        activeKey = geminiKey;
-        providerUsed = 'gemini';
-        budget = tokenBudget(activeSettings);
-        const fallbackMessages = fitMessages(system, fitted.messages, TOOLS, budget.maxInputTokens);
-        if (!fallbackMessages.fits)
-          return json({ error: 'This conversation is too long for the Gemini fallback model.' }, 413);
-        r = await callModel(
-          activeSettings,
-          activeKey,
-          system,
-          fallbackMessages.messages,
-          TOOLS,
-          budget.maxOutputTokens
-        );
-        return json({
-          content: r.content,
-          stop_reason: r.stop_reason,
-          usage: r.usage,
-          provider: providerUsed
-        });
-      }
-      const tokenError = e.tokenLimitError;
-      if (
-        activeSettings.provider === 'groq' &&
-        e.status !== 429 &&
-        tokenError &&
-        tokenError.limit &&
-        tokenError.requested > tokenError.limit
-      ) {
-        const reducedBudget = tokenBudget(settings, rateState, tokenError.limit);
-        const reduced = fitMessages(system, fitted.messages, TOOLS, reducedBudget.maxInputTokens);
-        if (reduced.fits && reduced.estimatedTokens < fitted.estimatedTokens) {
-          r = await callModel(
-            activeSettings,
-            activeKey,
-            system,
-            reduced.messages,
-            TOOLS,
-            reducedBudget.maxOutputTokens
-          );
-          await saveGroqRateState(env, settings.model, r.rate);
-          return json({ content: r.content, stop_reason: r.stop_reason, usage: r.usage });
+      if (isRetryableProviderFailure(e)) {
+        let lastError = e;
+        for (const fallback of configuredFallbacks) {
+          if (fallback.provider === activeSettings.provider) continue;
+          const fallbackBudget = tokenBudget(fallback.settings);
+          const fallbackMessages = fitMessages(system, body.messages, TOOLS, fallbackBudget.maxInputTokens);
+          if (!fallbackMessages.fits) continue;
+          try {
+            r = await callModel(
+              fallback.settings,
+              fallback.key,
+              system,
+              fallbackMessages.messages,
+              TOOLS,
+              fallbackBudget.maxOutputTokens
+            );
+            activeSettings = fallback.settings;
+            activeKey = fallback.key;
+            budget = fallbackBudget;
+            fitted = fallbackMessages;
+            providerUsed = fallback.provider;
+            break;
+          } catch (fallbackError) {
+            lastError = fallbackError;
+          }
         }
+        if (!r) e = lastError;
       }
-      throw e;
+      if (!r) {
+        const tokenError = e.tokenLimitError;
+        if (
+          activeSettings.provider === 'groq' &&
+          e.status !== 429 &&
+          tokenError &&
+          tokenError.limit &&
+          tokenError.requested > tokenError.limit
+        ) {
+          const reducedBudget = tokenBudget(settings, rateState, tokenError.limit);
+          const reduced = fitMessages(system, fitted.messages, TOOLS, reducedBudget.maxInputTokens);
+          if (reduced.fits && reduced.estimatedTokens < fitted.estimatedTokens) {
+            r = await callModel(
+              activeSettings,
+              activeKey,
+              system,
+              reduced.messages,
+              TOOLS,
+              reducedBudget.maxOutputTokens
+            );
+            await saveGroqRateState(env, settings.model, r.rate);
+            return json({ content: r.content, stop_reason: r.stop_reason, usage: r.usage });
+          }
+        }
+        throw e;
+      }
     }
     if (activeSettings.provider === 'groq') await saveGroqRateState(env, settings.model, r.rate);
     return json({

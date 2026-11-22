@@ -27,29 +27,48 @@ await page.goto(app.url + 'admin/');
 await page.waitForSelector('.stat');
 await page.click('.nav a[data-page=settings]');
 await page.waitForSelector('#aiform');
-await page.click('.provider-keys summary');
-await page.locator('[data-provider-key=groq]').fill('gsk-test-groq-key-1234');
-await page.locator('[data-provider-key=gemini]').fill('gemini-test-key-5678');
-await page.locator('[data-provider-key=anthropic]').fill('anthropic-test-key-9012');
+const fallbackConfig = await page.evaluate(async () => {
+  const invalid = await fetch('/api/admin/settings', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ provider: 'groq', fallbackProvider: 'groq' })
+  });
+  const cleared = await fetch('/api/admin/settings', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ provider: 'groq', fallbackProvider: '' })
+  });
+  return [invalid.status, cleared.status, (await cleared.json()).fallbackProvider];
+});
+eq(
+  fallbackConfig,
+  [400, 200, ''],
+  'no-second-provider setting persists and duplicate providers are rejected'
+);
+await page.selectOption('[name=provider]', 'openai');
+await page.locator('[name=apiKey]').fill('sk-test-openai-key-1234');
+await page.locator('[name=fallbackApiKey]').fill('gemini-test-key-5678');
+await page.locator('[name=nvidiaApiKey]').fill('nvidia-test-key-9012');
 await page.click('#aiform button.pr');
 await page.waitForFunction(() =>
-  document.querySelector('[data-provider-key=gemini]')?.placeholder.includes('••••')
+  document.querySelector('[name=fallbackApiKey]')?.placeholder.includes('••••')
 );
 
-await test('admin stores multiple provider keys independently and masks them', async () => {
+await test('admin configures primary, second, and NVIDIA third provider keys', async () => {
   const settings = await page.evaluate(async () => (await fetch('/api/admin/settings')).json());
+  eq([settings.provider, settings.fallbackProvider, settings.thirdProvider], ['openai', 'gemini', 'nvidia']);
   eq(
-    ['groq', 'gemini', 'anthropic'].map((provider) => settings.providers[provider].hasKey),
+    ['openai', 'gemini', 'nvidia'].map((provider) => settings.providers[provider].hasKey),
     [true, true, true]
   );
   eq(
-    ['groq', 'gemini', 'anthropic'].map((provider) => settings.providers[provider].keyHint),
+    ['openai', 'gemini', 'nvidia'].map((provider) => settings.providers[provider].keyHint),
     ['••••1234', '••••5678', '••••9012']
   );
   const response = JSON.stringify(settings);
-  ok(!response.includes('gsk-test-groq-key-1234'), 'Groq key is not returned');
+  ok(!response.includes('sk-test-openai-key-1234'), 'OpenAI key is not returned');
   ok(!response.includes('gemini-test-key-5678'), 'Gemini key is not returned');
-  ok(!response.includes('anthropic-test-key-9012'), 'Anthropic key is not returned');
+  ok(!response.includes('nvidia-test-key-9012'), 'NVIDIA key is not returned');
 });
 
 await browser.close();

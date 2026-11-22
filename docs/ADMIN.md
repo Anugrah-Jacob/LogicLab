@@ -24,7 +24,7 @@ The sidebar can be collapsed with the menu button; the choice is remembered.
 ## The AI provider and key
 
 - The key is encrypted with a key derived from `JWT_SECRET` before it is stored in the database. It is never sent back to any browser; the form only shows the last four characters.
-- You can save keys for multiple providers under **Provider API keys**. Each key is encrypted separately; LogicLab uses the key matching the selected provider and can use Gemini as a Groq fallback.
+- Settings has a primary provider, an optional second provider, and NVIDIA Build as the third provider. When a provider is rate-limited or unavailable, LogicLab tries the configured providers in order. Each key is encrypted separately.
 - **Test connection** sends one tiny request with your saved settings and reports success, the time it took, or the provider's error.
 - You can switch providers at any time. Every user's chat keeps working.
 - If you do not save a key here, the server falls back to an `ANTHROPIC_API_KEY` secret when the provider is Anthropic.

@@ -773,28 +773,47 @@
             '</option>'
         )
         .join('');
-      const providerKeyFields = Object.entries(s.providers)
-        .map(
-          ([id, provider]) =>
-            '<label class="f">' +
-            esc(provider.label) +
-            '<input class="in" type="password" data-provider-key="' +
-            esc(id) +
-            '" autocomplete="new-password" placeholder="' +
-            (provider.hasKey
-              ? 'Saved (' + esc(provider.keyHint) + '). Type a new key to replace it.'
-              : provider.keyHint
-                ? 'Configured (' + esc(provider.keyHint) + ')'
-                : 'Paste API key') +
-            '">' +
-            (provider.hasKey
-              ? '<button type="button" class="btn danger sm" data-act="clearProviderKey" data-id="' +
-                esc(id) +
-                '">Remove key</button>'
-              : '') +
-            '</label>'
-        )
-        .join('');
+      const fallbackOptions = (selected, primary) =>
+        '<option value="">No second provider</option>' +
+        Object.entries(s.providers)
+          .filter(([id]) => id !== primary && id !== 'nvidia')
+          .map(
+            ([id, provider]) =>
+              '<option value="' +
+              esc(id) +
+              '"' +
+              (id === selected ? ' selected' : '') +
+              '>' +
+              esc(provider.label) +
+              '</option>'
+          )
+          .join('');
+      const providerKeyInput = (provider, name, placeholder) => {
+        const keyInfo = provider && s.providers[provider];
+        const hint = keyInfo?.hasKey
+          ? 'Saved (' + esc(keyInfo.keyHint) + '). Type a new key to replace it.'
+          : keyInfo?.keyHint
+            ? 'Configured (' + esc(keyInfo.keyHint) + ')'
+            : placeholder;
+        const input =
+          '<input class="in" type="password" name="' +
+          name +
+          '"' +
+          (provider ? ' data-provider-key="' + esc(provider) + '"' : '') +
+          ' autocomplete="new-password" placeholder="' +
+          hint +
+          '">';
+        return (
+          input +
+          (keyInfo?.hasKey
+            ? '<button type="button" class="btn danger sm" data-act="clearProviderKey" data-id="' +
+              esc(provider) +
+              '"' +
+              (name === 'apiKey' ? ' data-primary-key-remove' : '') +
+              '>Remove saved key</button>'
+            : '')
+        );
+      };
       return (
         '<div class="g2"><form class="card" id="aiform"><h2>' +
         ic('spark') +
@@ -812,9 +831,19 @@
         '" placeholder="' +
         esc(p.base || 'https://your-provider.example/v1') +
         '" autocomplete="off"><small>Leave empty to use the provider’s default. Custom providers need an OpenAI-compatible URL that ends in /v1.</small></label>' +
-        '<details class="provider-keys"><summary>Provider API keys</summary><p class="muted">Save multiple provider keys here. LogicLab uses the selected provider and can use Gemini as a Groq fallback. Keys are encrypted and never shown again.</p>' +
-        providerKeyFields +
-        '</details>' +
+        '<label class="f">API key' +
+        providerKeyInput(s.provider, 'apiKey', 'Paste ' + p.label + ' API key') +
+        '<small>The key is encrypted and never shown again.</small></label>' +
+        '<div class="fallback-provider"><h3>Fallback providers</h3><p class="muted">If the primary provider is rate-limited or unavailable, LogicLab tries these providers in order.</p>' +
+        '<label class="f">2nd provider<select class="in" name="fallbackProvider">' +
+        fallbackOptions(s.fallbackProvider, s.provider) +
+        '</select></label>' +
+        '<label class="f">2nd provider API key' +
+        providerKeyInput(s.fallbackProvider, 'fallbackApiKey', 'Choose a second provider first') +
+        '</label>' +
+        '<label class="f">3rd provider · NVIDIA Build' +
+        providerKeyInput('nvidia', 'nvidiaApiKey', 'Paste NVIDIA Build API key') +
+        '<small>Used if both the primary and second providers are unavailable.</small></label></div>' +
         '<label class="f">Daily AI requests per user<input class="in" type="number" min="1" name="dailyLimit" value="' +
         s.dailyLimit +
         '"></label>' +
@@ -906,12 +935,56 @@
   const AFTER = {
     settings() {
       const form = $('#aiform');
+      const fallbackOptions = (selected, primary) =>
+        '<option value="">No second provider</option>' +
+        Object.entries(VIEWS._providers)
+          .filter(([id]) => id !== primary && id !== 'nvidia')
+          .map(
+            ([id, provider]) =>
+              '<option value="' +
+              esc(id) +
+              '"' +
+              (id === selected ? ' selected' : '') +
+              '>' +
+              esc(provider.label) +
+              '</option>'
+          )
+          .join('');
       form.elements.provider.addEventListener('change', async () => {
-        const p = VIEWS._providers[form.elements.provider.value];
+        const selectedProvider = form.elements.provider.value;
+        const p = VIEWS._providers[selectedProvider];
+        const previousFallback = form.elements.fallbackProvider.value;
+        form.elements.fallbackProvider.innerHTML = fallbackOptions(previousFallback, selectedProvider);
+        if (form.elements.fallbackProvider.value !== previousFallback)
+          form.elements.fallbackApiKey.value = '';
+        form.elements.apiKey.dataset.providerKey = selectedProvider;
+        form.elements.apiKey.placeholder = p.hasKey
+          ? 'Saved (' + p.keyHint + '). Type a new key to replace it.'
+          : p.keyHint
+            ? 'Configured (' + p.keyHint + ')'
+            : 'Paste ' + p.label + ' API key';
+        const primaryRemove = form.querySelector('[data-primary-key-remove]');
+        if (primaryRemove) {
+          primaryRemove.dataset.id = selectedProvider;
+          primaryRemove.hidden = !p.hasKey;
+        }
+        form.elements.fallbackApiKey.dataset.providerKey = form.elements.fallbackProvider.value;
+        form.elements.fallbackApiKey.placeholder = form.elements.fallbackProvider.value
+          ? 'Paste ' + VIEWS._providers[form.elements.fallbackProvider.value].label + ' API key'
+          : 'Choose a second provider first';
         form.elements.model.value = p.model;
         form.elements.baseUrl.value = '';
         form.elements.baseUrl.placeholder = p.base || 'https://your-provider.example/v1';
         $('#models').innerHTML = p.models.map((m) => '<option value="' + esc(m) + '">').join('');
+      });
+      form.elements.fallbackProvider.addEventListener('change', () => {
+        const provider = form.elements.fallbackProvider.value;
+        if (form.elements.fallbackApiKey.dataset.providerKey !== provider)
+          form.elements.fallbackApiKey.value = '';
+        form.elements.fallbackApiKey.dataset.providerKey = provider;
+        form.elements.fallbackApiKey.placeholder = provider
+          ? 'Paste ' + VIEWS._providers[provider].label + ' API key'
+          : 'Choose a second provider first';
       });
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -923,9 +996,11 @@
           dailyLimit: Number(f.dailyLimit.value),
           aiEnabled: f.aiEnabled.checked
         };
+        body.fallbackProvider = f.fallbackProvider.value;
         body.providerKeys = {};
         form.querySelectorAll('[data-provider-key]').forEach((input) => {
-          if (input.value.trim()) body.providerKeys[input.dataset.providerKey] = input.value.trim();
+          if (input.dataset.providerKey && input.value.trim())
+            body.providerKeys[input.dataset.providerKey] = input.value.trim();
         });
         try {
           await api('/admin/settings', { method: 'PUT', body });
