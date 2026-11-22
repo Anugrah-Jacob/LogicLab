@@ -12,38 +12,62 @@ const stamp = Date.now();
 /* ---- a fake AI provider that speaks both the OpenAI and the Anthropic format ---- */
 const seen = [];
 let expectedKey = 'sk-test-AAAA1111';
+let mockDelayMs = 0;
+let activeMockRequests = 0;
+let maxActiveMockRequests = 0;
+let mockResponseHeaders = {};
 const mock = http.createServer(async (req, res) => {
   let raw = '';
   for await (const chunk of req) raw += chunk;
   const body = raw ? JSON.parse(raw) : {};
   seen.push({ url: req.url, headers: req.headers, body });
   const send = (status, data) => {
-    res.writeHead(status, { 'content-type': 'application/json' });
+    res.writeHead(status, { 'content-type': 'application/json', ...mockResponseHeaders });
     res.end(JSON.stringify(data));
   };
   if (req.url === '/v1/chat/completions') {
     if (req.headers.authorization !== 'Bearer ' + expectedKey)
       return send(401, { error: { message: 'bad key' } });
     const toolMessages = body.messages.filter((m) => m.role === 'tool').length;
-    const call = (name, args) =>
-      send(200, {
-        choices: [
-          {
-            finish_reason: 'tool_calls',
-            message: {
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                { id: 'call_' + name, type: 'function', function: { name, arguments: JSON.stringify(args) } }
-              ]
+    const call = async (name, args) => {
+      activeMockRequests++;
+      maxActiveMockRequests = Math.max(maxActiveMockRequests, activeMockRequests);
+      try {
+        if (mockDelayMs) await new Promise((resolve) => setTimeout(resolve, mockDelayMs));
+        return send(200, {
+          choices: [
+            {
+              finish_reason: 'tool_calls',
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_' + name,
+                    type: 'function',
+                    function: { name, arguments: JSON.stringify(args) }
+                  }
+                ]
+              }
             }
-          }
-        ]
-      });
-    if (!body.tools)
-      return send(200, {
-        choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'OK' } }]
-      });
+          ]
+        });
+      } finally {
+        activeMockRequests--;
+      }
+    };
+    if (!body.tools) {
+      activeMockRequests++;
+      maxActiveMockRequests = Math.max(maxActiveMockRequests, activeMockRequests);
+      try {
+        if (mockDelayMs) await new Promise((resolve) => setTimeout(resolve, mockDelayMs));
+        return send(200, {
+          choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'OK' } }]
+        });
+      } finally {
+        activeMockRequests--;
+      }
+    }
     if (toolMessages === 0)
       return call('build_circuit', {
         replace: true,
@@ -241,12 +265,68 @@ await test('AI provider settings: validation, encrypted key, masked in responses
   const good = (await admin.post('/admin/settings/test')).data;
   eq([good.ok, good.reply], [true, 'OK']);
   ok(seen.at(-1).headers.authorization === 'Bearer ' + expectedKey, 'the saved key was used');
+  ok(
+    !Object.hasOwn(seen.at(-1).body, 'signal'),
+    'fetch timeout configuration is not sent in the request body'
+  );
   expectedKey = 'sk-test-ROTATED2';
   const bad = (await admin.post('/admin/settings/test')).data;
   ok(!bad.ok && /Provider error \(401\)/.test(bad.error), bad.error);
   await admin.put('/admin/settings', { apiKey: expectedKey });
   eq((await admin.post('/admin/settings/test')).data.ok, true, 'a new key replaces the old one');
   eq((await bob.get('/admin/settings')).status, 403);
+});
+
+await test('AI requests from different users share one provider queue', async () => {
+  mockDelayMs = 100;
+  maxActiveMockRequests = 0;
+  const payload = { messages: [{ role: 'user', content: 'Reply with OK.' }] };
+  const responses = await Promise.all([admin.post('/ai', payload), bob.post('/ai', payload)]);
+  mockDelayMs = 0;
+  eq(
+    responses.map((response) => response.status),
+    [200, 200]
+  );
+  eq(maxActiveMockRequests, 1, 'provider calls never overlap across users');
+});
+
+await test('Groq rate headers limit output and prevent requests over the shared token budget', async () => {
+  await admin.put('/admin/settings', {
+    provider: 'groq',
+    baseUrl: MOCK + '/v1',
+    model: 'llama-3.3-70b-versatile'
+  });
+  const callsBefore = seen.length;
+  const tooLong = await bob.post('/ai', {
+    messages: [{ role: 'user', content: 'x'.repeat(20000) }]
+  });
+  eq(tooLong.status, 413, 'oversized conversation is rejected before contacting Groq');
+  eq(seen.length, callsBefore);
+
+  mockResponseHeaders = {
+    'x-ratelimit-limit-tokens': '6000',
+    'x-ratelimit-remaining-tokens': '100',
+    'x-ratelimit-reset-tokens': '30s',
+    'x-ratelimit-limit-requests': '100',
+    'x-ratelimit-remaining-requests': '99',
+    'x-ratelimit-reset-requests': '1d'
+  };
+  const first = await bob.post('/ai', { messages: [{ role: 'user', content: 'Reply with OK.' }] });
+  eq(first.status, 200);
+  const providerRequest = seen.at(-1);
+  ok(providerRequest.body.max_tokens <= 1024, 'Groq output is capped to the configured token budget');
+  const callsAfterFirst = seen.length;
+
+  mockResponseHeaders = {};
+  const blocked = await admin.post('/ai', { messages: [{ role: 'user', content: 'Reply with OK.' }] });
+  eq(blocked.status, 429);
+  ok(blocked.data.retryAfter > 0, 'response includes a retry delay');
+  eq(seen.length, callsAfterFirst, 'the persisted Groq budget blocks the next call');
+  await admin.put('/admin/settings', {
+    provider: 'custom',
+    baseUrl: MOCK + '/v1',
+    model: 'mock-model'
+  });
 });
 
 const BROWSER = await chromium.launch();
