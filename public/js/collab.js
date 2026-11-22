@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- state */
   let S = null; // the live session, or null
   let share = null; // the owner's share record for the open project
-  let ui = { open: false, menu: false, more: false, chat: false, busy: '', note: '' };
+  let ui = { open: false, menu: false, more: false, download: false, chat: false, busy: '', note: '' };
   const authName = () => {
     const u = host.user();
     return u ? u.name : localStorage.getItem('ll:guestname') || '';
@@ -1037,6 +1037,7 @@
   function togglePopover(on) {
     ui.open = on === undefined ? !ui.open : on;
     ui.menu = false;
+    if (!ui.open) ui.download = false;
     pop.hidden = !ui.open;
     shareBtn.classList.toggle('cb-open', ui.open);
     if (ui.open) {
@@ -1225,6 +1226,9 @@
     if (u && host.pid() && (!S || canEdit(S.role)))
       h += row('cb-r-hist', ICON.hist, 'Version history', '', 1);
     h += row('cb-r-dl', ICON.dl, 'Download', '', 1);
+    if (ui.download)
+      h +=
+        '<div class="cb-downloads"><button class="cb-rw" data-download="proj">Project file (.logiclab.json)</button><button class="cb-rw" data-download="png">Export PNG image</button><button class="cb-rw" data-download="pdf">Export PDF</button></div>';
     if (S) h += row('cb-r-leave', ICON.more, S.owner ? 'End my live session' : 'Leave session', '');
     if (owner && u && share) h += row('cb-r-more', ICON.more, 'More', '', 1);
     h += '</div>';
@@ -1330,7 +1334,14 @@
     if (g('cb-r-chat')) g('cb-r-chat').onclick = () => (togglePopover(false), toggleChat(true));
     if (g('cb-r-mic')) g('cb-r-mic').onclick = toggleMic;
     if (g('cb-r-hist')) g('cb-r-hist').onclick = () => (togglePopover(false), openHistory());
-    if (g('cb-r-dl')) g('cb-r-dl').onclick = () => (togglePopover(false), $('#sv').click());
+    if (g('cb-r-dl')) g('cb-r-dl').onclick = () => ((ui.download = !ui.download), renderPopover());
+    pop.querySelectorAll('[data-download]').forEach(
+      (b) =>
+        (b.onclick = () => {
+          togglePopover(false);
+          host.download(b.dataset.download);
+        })
+    );
     if (g('cb-r-leave')) g('cb-r-leave').onclick = () => leave();
     if (g('cb-r-more')) g('cb-r-more').onclick = () => ((ui.more = !ui.more), renderPopover());
     if (g('cb-rst')) g('cb-rst').onclick = resetLink;

@@ -118,12 +118,18 @@ await test('a drawing can be grouped with parts and the group moves as one', asy
 });
 
 /* ---- save, export, reopen ---- */
-await test('Save menu offers project file, PNG and PDF, and each download is valid', async () => {
+await test('Share menu offers project file, PNG and PDF downloads, and each download is valid', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
   await pg.fill('#pn', 'My Test Circuit');
+  ok(!(await pg.locator('#sv').count()), 'standalone Save button is removed');
   const grab = async (x) => {
-    await pg.click('#sv');
-    const [d] = await Promise.all([pg.waitForEvent('download'), pg.click('#sm [data-x=' + x + ']')]);
+    await pg.click('#cb-share');
+    await pg.click('#cb-r-dl');
+    ok((await pg.locator('#cb-pop [data-download]').count()) === 3, 'Download submenu has all formats');
+    const [d] = await Promise.all([
+      pg.waitForEvent('download'),
+      pg.click('#cb-pop [data-download=' + x + ']')
+    ]);
     const f = '/tmp/ll-dl-' + x;
     await d.saveAs(f);
     return { name: d.suggestedFilename(), data: fs.readFileSync(f) };
@@ -192,7 +198,6 @@ await test('blue theme and control icons render without missing-glyph boxes', as
       light,
       dark,
       powerIcon: document.querySelector('#pwr use')?.getAttribute('href'),
-      saveIcon: document.querySelector('#sv use')?.getAttribute('href'),
       themeIcon: document.querySelector('#th use')?.getAttribute('href'),
       recentIcon: document.querySelector('#wl [data-s="wrc"] use')?.getAttribute('href'),
       learnIcon: document.querySelector('#wl a[href="learn/"] use')?.getAttribute('href')
@@ -201,7 +206,6 @@ await test('blue theme and control icons render without missing-glyph boxes', as
   eq(colors.light, '#1d4ed8');
   eq(colors.dark, '#60a5fa');
   eq(colors.powerIcon, '#icon-power');
-  eq(colors.saveIcon, '#icon-save');
   eq(colors.themeIcon, '#icon-theme');
   eq(colors.recentIcon, '#icon-clock');
   eq(colors.learnIcon, '#icon-book');

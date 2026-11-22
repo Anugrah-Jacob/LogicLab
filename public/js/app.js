@@ -3778,7 +3778,11 @@
       autosave();
       await syncAll(true);
     },
-    toast: (m, t, ms) => toast(m, t, ms)
+    toast: (m, t, ms) => toast(m, t, ms),
+    download(type) {
+      if (type === 'proj') save();
+      else if (type === 'png' || type === 'pdf') expImg(type === 'pdf');
+    }
   };
 
   /* ---------- debugging and test hooks: window.LogicLab (see docs/DEBUGGING.md) ---------- */
@@ -4508,19 +4512,6 @@
     if (pdf) dl(pdfFrom(c), fname('.pdf'));
     else c.toBlob((b) => dl(b, fname('.png')));
   }
-  $('#sv').onclick = (e) => {
-    e.stopPropagation();
-    $('#sm').hidden = !$('#sm').hidden;
-  };
-  $('#sm').onclick = (e) => {
-    const x = e.target.dataset.x;
-    if (!x) return;
-    $('#sm').hidden = true;
-    x == 'proj' ? save() : expImg(x == 'pdf');
-  };
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.dd')) $('#sm').hidden = true;
-  });
   $('#mdl').onchange = (e) => {
     RV = e.target.value == '1';
     nodes.forEach((n) => {
@@ -4854,7 +4845,7 @@
     document.querySelector('meta[name=theme-color]').content = t == 'dark' ? '#111c33' : '#2563eb';
   }
   $('#th').onclick = $('#wth').onclick = () => setTheme(isDark() ? 'light' : 'dark');
-  const closeMenus = () => ['#sm', '#mm', '#avm'].forEach((q) => ($(q).hidden = true));
+  const closeMenus = () => ['#mm', '#avm'].forEach((q) => ($(q).hidden = true));
   document.body.insertAdjacentHTML('beforeend', '<div id="avm" hidden></div>');
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.dd,#avm,.avb')) closeMenus();
@@ -4868,10 +4859,6 @@
   $('#mm').onclick = (e) => {
     if (e.target.closest('button')) $('#mm').hidden = true;
   };
-  $('#sv').addEventListener('click', () => {
-    $('#mm').hidden = true;
-    $('#avm').hidden = true;
-  });
   document.querySelectorAll('.mo').forEach((m) =>
     m.addEventListener('click', (e) => {
       if (e.target == m || e.target.dataset.close !== undefined) m.hidden = true;

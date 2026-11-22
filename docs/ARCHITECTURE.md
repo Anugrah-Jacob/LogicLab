@@ -56,8 +56,8 @@ uses, then `aiLayout` places the parts: columns by logic depth, feedback wires i
 
 ## Project file and storage
 
-`Save` writes `*.logiclab.json` (`app`, `ver`, `name`, settings, `nodes`, `wires`, `groups`, `notes`, `layers`, plus
-simulation state). Files with `app: "GateForge"` (the earlier name) still open. Projects live in `localStorage`
+The Share menu's Download option writes `*.logiclab.json` (`app`, `ver`, `name`, settings, `nodes`, `wires`, `groups`, `notes`, `layers`, plus
+simulation state), and can export PNG or PDF images. Files with `app: "GateForge"` (the earlier name) still open. Projects live in `localStorage`
 under keys that start with `gf:` (the prefix is kept so existing data survives the rename):
 `gf:<user or guest>:idx` (project list), `:p:<id>` (project), `:t:<id>` (thumbnail), `:del` (pending deletions).
 
