@@ -301,10 +301,14 @@ export async function deleteUser(env, me, id) {
     env.DB.prepare('DELETE FROM users WHERE id=?').bind(id)
   ]);
   try {
-    // Share links, live-session rows and history of this user (tables exist after migration 0003).
+    // Share links, invitations, live-session rows and history for this user.
     await env.DB.batch([
       env.DB.prepare('DELETE FROM peers WHERE room IN (SELECT id FROM shares WHERE uid=?)').bind(id),
+      env.DB.prepare(
+        'DELETE FROM collaboration_invites WHERE room IN (SELECT id FROM shares WHERE uid=?)'
+      ).bind(id),
       env.DB.prepare('DELETE FROM shares WHERE uid=?').bind(id),
+      env.DB.prepare('DELETE FROM peers WHERE user_id=?').bind(id),
       env.DB.prepare('DELETE FROM history WHERE uid=?').bind(id)
     ]);
   } catch {

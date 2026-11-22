@@ -8,7 +8,18 @@
 //
 // Permissions are checked here (who may save) and again in every browser (who may change the shared circuit):
 // each browser ignores edits from people whose role, as reported by this server, is "view".
-import { json, fail, b64u, enc, seal, unseal } from './util.js';
+import {
+  json,
+  fail,
+  b64u,
+  enc,
+  seal,
+  unseal,
+  validEmail,
+  validPassword,
+  makePasswordRecord,
+  checkPassword
+} from './util.js';
 import { loadProject, saveProjectDoc, PROJECT_ID, MAX_BYTES } from './projects.js';
 import { historyOp } from './history.js';
 
@@ -39,9 +50,13 @@ function safeEq(a, b) {
 /* ---- peer tokens: HMAC(room | peer | role), so a peer id cannot be spoofed ---- */
 async function macKey(env) {
   if (!env.JWT_SECRET || env.JWT_SECRET.length < 16) throw new Error('JWT_SECRET is missing or too short');
-  return crypto.subtle.importKey('raw', enc.encode(env.JWT_SECRET + ':collab'), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign'
-  ]);
+  return crypto.subtle.importKey(
+    'raw',
+    enc.encode(env.JWT_SECRET + ':collab'),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
 }
 const mint = async (env, room, peer, role) =>
   b64u(await crypto.subtle.sign('HMAC', await macKey(env), enc.encode(room + '|' + peer + '|' + role)));
@@ -102,9 +117,33 @@ const links = async (env, r) => ({
   editKey: await unseal(env, r.edit_key),
   viewOn: !!r.view_on,
   editOn: !!r.edit_on,
+  hasPassword: !!r.password_hash,
   pid: r.pid
 });
-const shareOf = (env, uid, pid) => env.DB.prepare('SELECT * FROM shares WHERE uid=? AND pid=?').bind(uid, pid).first();
+const shareDetails = async (env, r) => ({
+  ...(await links(env, r)),
+  invites: (
+    await env.DB.prepare(
+      'SELECT email,role,created FROM collaboration_invites WHERE room=? ORDER BY created,email'
+    )
+      .bind(r.id)
+      .all()
+  ).results
+});
+const shareOf = (env, uid, pid) =>
+  env.DB.prepare('SELECT * FROM shares WHERE uid=? AND pid=?').bind(uid, pid).first();
+async function disconnectInvitedUser(env, room, email) {
+  const user = await env.DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first();
+  if (!user) return;
+  const peers = await env.DB.prepare('SELECT peer FROM peers WHERE room=? AND user_id=?')
+    .bind(room, user.id)
+    .all();
+  for (const peer of peers.results)
+    await env.DB.prepare('DELETE FROM signals WHERE room=? AND (src=? OR dst=?)')
+      .bind(room, peer.peer, peer.peer)
+      .run();
+  await env.DB.prepare('DELETE FROM peers WHERE room=? AND user_id=?').bind(room, user.id).run();
+}
 
 async function newKeys(env) {
   return [await seal(env, rand(16)), await seal(env, rand(16))];
@@ -115,7 +154,7 @@ async function shareAdmin(request, env, me, method, url) {
     const pid = url.searchParams.get('pid') || '';
     if (!PROJECT_ID.test(pid)) return fail(400, 'Bad project id.');
     const r = await shareOf(env, me.id, pid);
-    return json({ share: r ? await links(env, r) : null });
+    return json({ share: r ? await shareDetails(env, r) : null });
   }
   if (method !== 'POST') return fail(405, 'Method not allowed.');
   const body = await request.json().catch(() => ({}));
@@ -123,45 +162,105 @@ async function shareAdmin(request, env, me, method, url) {
   if (!PROJECT_ID.test(pid)) return fail(400, 'Bad project id.');
   let r = await shareOf(env, me.id, pid);
   const kick = (roles) =>
-    env.DB.prepare(`DELETE FROM peers WHERE room=? AND role IN (${roles.map(() => '?').join(',')})`).bind(
-      r.id,
-      ...roles
-    );
+    env.DB.prepare(
+      `DELETE FROM peers WHERE room=? AND user_id IS NULL AND role IN (${roles.map(() => '?').join(',')})`
+    ).bind(r.id, ...roles);
   switch (body.action) {
     case 'create': {
       if (!r) {
-        const p = await env.DB.prepare('SELECT 1 FROM projects WHERE uid=? AND id=?').bind(me.id, pid).first();
-        if (!p) return fail(404, 'Sync this project to your account first (wait for "Synced"), then share it.');
+        const p = await env.DB.prepare('SELECT 1 FROM projects WHERE uid=? AND id=?')
+          .bind(me.id, pid)
+          .first();
+        if (!p)
+          return fail(404, 'Sync this project to your account first (wait for "Synced"), then share it.');
         const [vk, ek] = await newKeys(env);
-        await env.DB.prepare('INSERT INTO shares(id,uid,pid,view_key,edit_key,view_on,edit_on,created) VALUES(?,?,?,?,?,1,1,?)')
+        await env.DB.prepare(
+          'INSERT INTO shares(id,uid,pid,view_key,edit_key,view_on,edit_on,created) VALUES(?,?,?,?,?,1,1,?)'
+        )
           .bind(rand(9), me.id, pid, vk, ek, Date.now())
           .run();
         r = await shareOf(env, me.id, pid);
       }
-      return json({ share: await links(env, r) });
+      return json({ share: await shareDetails(env, r) });
     }
     case 'rotate': {
       if (!r) return fail(404, 'This project is not shared.');
       const [vk, ek] = await newKeys(env);
       await env.DB.prepare('UPDATE shares SET view_key=?, edit_key=? WHERE id=?').bind(vk, ek, r.id).run();
       await kick(['view', 'edit']).run();
-      return json({ share: await links(env, await shareOf(env, me.id, pid)) });
+      return json({ share: await shareDetails(env, await shareOf(env, me.id, pid)) });
     }
     case 'toggle': {
       if (!r) return fail(404, 'This project is not shared.');
       const viewOn = body.viewOn === undefined ? !!r.view_on : !!body.viewOn,
         editOn = body.editOn === undefined ? !!r.edit_on : !!body.editOn;
-      await env.DB.prepare('UPDATE shares SET view_on=?, edit_on=? WHERE id=?').bind(+viewOn, +editOn, r.id).run();
+      await env.DB.prepare('UPDATE shares SET view_on=?, edit_on=? WHERE id=?')
+        .bind(+viewOn, +editOn, r.id)
+        .run();
       const off = [];
       if (!viewOn) off.push('view');
       if (!editOn) off.push('edit');
       if (off.length) await kick(off).run();
-      return json({ share: await links(env, await shareOf(env, me.id, pid)) });
+      return json({ share: await shareDetails(env, await shareOf(env, me.id, pid)) });
+    }
+    case 'password': {
+      if (!r) return fail(404, 'Create a collaboration link first.');
+      const password = String(body.password || '');
+      if (password && !validPassword(password)) return fail(400, 'Password must be 8 to 128 characters.');
+      const record = password ? await makePasswordRecord(password) : '';
+      await env.DB.prepare('UPDATE shares SET password_hash=? WHERE id=?').bind(record, r.id).run();
+      return json({ share: await shareDetails(env, await shareOf(env, me.id, pid)) });
+    }
+    case 'invite': {
+      const email = String(body.email || '')
+        .trim()
+        .toLowerCase();
+      const role = body.role === 'view' ? 'view' : body.role === 'edit' ? 'edit' : '';
+      if (!validEmail(email)) return fail(400, 'Enter a valid email address.');
+      if (!role) return fail(400, 'Choose whether this person can view or edit.');
+      if (!r) {
+        const p = await env.DB.prepare('SELECT 1 FROM projects WHERE uid=? AND id=?')
+          .bind(me.id, pid)
+          .first();
+        if (!p)
+          return fail(
+            404,
+            'Sync this project to your account first (wait for "Synced"), then invite people.'
+          );
+        const [vk, ek] = await newKeys(env);
+        await env.DB.prepare(
+          'INSERT INTO shares(id,uid,pid,view_key,edit_key,view_on,edit_on,created) VALUES(?,?,?,?,?,0,0,?)'
+        )
+          .bind(rand(9), me.id, pid, vk, ek, Date.now())
+          .run();
+        r = await shareOf(env, me.id, pid);
+      }
+      if (email === String(me.email).toLowerCase()) return fail(400, 'You already own this project.');
+      await env.DB.prepare(
+        'INSERT INTO collaboration_invites(room,email,role,created) VALUES(?,?,?,?) ON CONFLICT(room,email) DO UPDATE SET role=excluded.role,created=excluded.created'
+      )
+        .bind(r.id, email, role, Date.now())
+        .run();
+      await disconnectInvitedUser(env, r.id, email);
+      return json({ share: await shareDetails(env, await shareOf(env, me.id, pid)) });
+    }
+    case 'uninvite': {
+      if (!r) return fail(404, 'This project is not shared.');
+      const email = String(body.email || '')
+        .trim()
+        .toLowerCase();
+      if (!validEmail(email)) return fail(400, 'Invalid email address.');
+      await env.DB.prepare('DELETE FROM collaboration_invites WHERE room=? AND email=?')
+        .bind(r.id, email)
+        .run();
+      await disconnectInvitedUser(env, r.id, email);
+      return json({ share: await shareDetails(env, await shareOf(env, me.id, pid)) });
     }
     case 'delete': {
       if (r) {
         await env.DB.prepare('DELETE FROM peers WHERE room=?').bind(r.id).run();
         await env.DB.prepare('DELETE FROM signals WHERE room=?').bind(r.id).run();
+        await env.DB.prepare('DELETE FROM collaboration_invites WHERE room=?').bind(r.id).run();
         await env.DB.prepare('DELETE FROM shares WHERE id=?').bind(r.id).run();
       }
       return json({ share: null });
@@ -172,10 +271,14 @@ async function shareAdmin(request, env, me, method, url) {
 }
 
 /* ---- joining a room ---- */
-async function enter(env, share, role, name) {
+async function enter(env, share, role, name, userId = null) {
   const now = Date.now();
-  await env.DB.prepare('DELETE FROM peers WHERE room=? AND seen<?').bind(share.id, now - STALE_MS).run();
-  await env.DB.prepare('DELETE FROM signals WHERE ts<?').bind(now - 120_000).run();
+  await env.DB.prepare('DELETE FROM peers WHERE room=? AND seen<?')
+    .bind(share.id, now - STALE_MS)
+    .run();
+  await env.DB.prepare('DELETE FROM signals WHERE ts<?')
+    .bind(now - 120_000)
+    .run();
   const live = (await env.DB.prepare('SELECT slot FROM peers WHERE room=?').bind(share.id).all()).results;
   if (live.length >= MAX_PEERS) return fail(429, `This session is full (${MAX_PEERS} people).`);
 
@@ -194,8 +297,8 @@ async function enter(env, share, role, name) {
     let slot = 0;
     while (used.has(slot)) slot++;
     try {
-      await env.DB.prepare('INSERT INTO peers(room,peer,name,role,slot,seen) VALUES(?,?,?,?,?,?)')
-        .bind(share.id, peer, name, role, slot, now)
+      await env.DB.prepare('INSERT INTO peers(room,peer,name,role,slot,seen,user_id) VALUES(?,?,?,?,?,?,?)')
+        .bind(share.id, peer, name, role, slot, now, userId)
         .run();
       return json({
         room: share.id,
@@ -217,17 +320,38 @@ async function enter(env, share, role, name) {
   return fail(503, 'Could not join right now. Try again.');
 }
 
-async function joinWithKey(request, env) {
+async function joinWithKey(request, env, getMe) {
   const body = await request.json().catch(() => ({}));
   const gone = () => fail(403, 'This link is not valid any more. Ask the owner for a new one.');
   if (typeof body.share !== 'string' || typeof body.key !== 'string' || !ROOM.test(body.share)) return gone();
   const r = await env.DB.prepare('SELECT * FROM shares WHERE id=?').bind(body.share).first();
   if (!r) return gone();
+  if (r.password_hash) {
+    if (!(await getMe())) return fail(401, 'Sign in to open a password-protected collaboration link.');
+    if (typeof body.password !== 'string' || !body.password)
+      return fail(401, 'Enter the password for this collaboration link.');
+    if (!(await checkPassword(body.password, r.password_hash)))
+      return fail(403, 'That collaboration password is incorrect.');
+  }
   let role = null;
   if (r.edit_on && safeEq(body.key, await unseal(env, r.edit_key))) role = 'edit';
   else if (r.view_on && safeEq(body.key, await unseal(env, r.view_key))) role = 'view';
   if (!role) return gone();
   return enter(env, r, role, cleanName(body.name, 'Guest'));
+}
+
+async function joinInvite(request, env, me) {
+  const body = await request.json().catch(() => ({}));
+  const room = String(body.share || '');
+  if (!ROOM.test(room)) return fail(404, 'This invitation is no longer available.');
+  const invitation = await env.DB.prepare('SELECT role FROM collaboration_invites WHERE room=? AND email=?')
+    .bind(room, String(me.email).trim().toLowerCase())
+    .first();
+  if (!invitation)
+    return fail(403, 'This invitation is for a different account. Sign in with the invited email address.');
+  const share = await env.DB.prepare('SELECT * FROM shares WHERE id=?').bind(room).first();
+  if (!share) return fail(404, 'This invitation is no longer available.');
+  return enter(env, share, invitation.role, cleanName(body.name || me.name, 'Member'), me.id);
 }
 
 async function hostRoom(request, env, me) {
@@ -236,7 +360,7 @@ async function hostRoom(request, env, me) {
   if (!PROJECT_ID.test(pid)) return fail(400, 'Bad project id.');
   const r = await shareOf(env, me.id, pid);
   if (!r) return fail(404, 'This project is not shared yet.');
-  return enter(env, r, 'owner', cleanName(body.name || me.name, 'Owner'));
+  return enter(env, r, 'owner', cleanName(body.name || me.name, 'Owner'), me.id);
 }
 
 /* ---- inside a room ---- */
@@ -258,7 +382,9 @@ async function inRoom(request, env, room, op) {
   if (op === 'signal') {
     if (!KINDS.has(body.kind) || typeof body.data !== 'string' || body.data.length > MAX_SIGNAL)
       return fail(400, 'Bad signal.');
-    const to = await env.DB.prepare('SELECT 1 FROM peers WHERE room=? AND peer=?').bind(room, String(body.to)).first();
+    const to = await env.DB.prepare('SELECT 1 FROM peers WHERE room=? AND peer=?')
+      .bind(room, String(body.to))
+      .first();
     if (!to) return fail(410, 'That person already left.');
     const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM signals WHERE room=? AND src=? AND ts>?')
       .bind(room, p.peer, now - 60_000)
@@ -274,8 +400,13 @@ async function inRoom(request, env, room, op) {
     const since = Math.max(0, Number(body.since) || 0);
     if (now - p.seen > BEAT_MS)
       await env.DB.prepare('UPDATE peers SET seen=? WHERE room=? AND peer=?').bind(now, room, p.peer).run();
-    if (since) await env.DB.prepare('DELETE FROM signals WHERE room=? AND dst=? AND id<=?').bind(room, p.peer, since).run();
-    const sig = await env.DB.prepare('SELECT id,src,kind,data FROM signals WHERE room=? AND dst=? AND id>? ORDER BY id LIMIT 60')
+    if (since)
+      await env.DB.prepare('DELETE FROM signals WHERE room=? AND dst=? AND id<=?')
+        .bind(room, p.peer, since)
+        .run();
+    const sig = await env.DB.prepare(
+      'SELECT id,src,kind,data FROM signals WHERE room=? AND dst=? AND id>? ORDER BY id LIMIT 60'
+    )
       .bind(room, p.peer, since)
       .all();
     return json({
@@ -286,7 +417,9 @@ async function inRoom(request, env, room, op) {
 
   if (op === 'leave') {
     await env.DB.prepare('DELETE FROM peers WHERE room=? AND peer=?').bind(room, p.peer).run();
-    await env.DB.prepare('DELETE FROM signals WHERE room=? AND (src=? OR dst=?)').bind(room, p.peer, p.peer).run();
+    await env.DB.prepare('DELETE FROM signals WHERE room=? AND (src=? OR dst=?)')
+      .bind(room, p.peer, p.peer)
+      .run();
     return json({ ok: true });
   }
 
@@ -294,7 +427,8 @@ async function inRoom(request, env, room, op) {
     if (p.role === 'view') return fail(403, 'View-only links cannot change the project.');
     const doc = body.doc;
     if (!doc || typeof doc !== 'object' || !Array.isArray(doc.nodes)) return fail(400, 'Invalid project.');
-    if (JSON.stringify(doc).length > MAX_BYTES) return fail(413, 'Project is too large to save (limit 1.5 MB).');
+    if (JSON.stringify(doc).length > MAX_BYTES)
+      return fail(413, 'Project is too large to save (limit 1.5 MB).');
     const updated = await saveProjectDoc(env, share.uid, share.pid, {
       doc,
       name: body.name ? cleanName(body.name, '') || undefined : undefined,
@@ -316,11 +450,17 @@ async function inRoom(request, env, room, op) {
  */
 export async function handleCollab(request, env, path, method, url, getMe) {
   const parts = path.split('/').filter(Boolean); // ['collab', ...]
-  if (parts[1] === 'join' && method === 'POST') return joinWithKey(request, env);
+  if (parts[1] === 'join' && method === 'POST') return joinWithKey(request, env, getMe);
+  if (parts[1] === 'invite' && parts[2] === 'join' && method === 'POST') {
+    const me = await getMe();
+    if (!me) return fail(401, 'Sign in with the invited email address to join this project.');
+    return joinInvite(request, env, me);
+  }
   if (parts[1] === 'host' || parts[1] === 'share') {
     const me = await getMe();
     if (!me) return fail(401, 'Not signed in.');
-    if (parts[1] === 'host') return method === 'POST' ? hostRoom(request, env, me) : fail(405, 'Method not allowed.');
+    if (parts[1] === 'host')
+      return method === 'POST' ? hostRoom(request, env, me) : fail(405, 'Method not allowed.');
     return shareAdmin(request, env, me, method, url);
   }
   if (parts.length === 3 && (method === 'POST' || method === 'PUT')) {

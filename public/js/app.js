@@ -3605,7 +3605,19 @@
   $('#cvr').onclick = () => doConvert('NOR');
 
   /* ---------- live collaboration host API (used by js/collab.js; see docs/COLLABORATION.md) ---------- */
-  const NODE_DEFAULTS = { pc: 0, q: 0, cnt: 0, v: 0, per: 20, avg: 0, trig: 'R', act: -99, nin: 2, probe: 0, hide: 0 };
+  const NODE_DEFAULTS = {
+    pc: 0,
+    q: 0,
+    cnt: 0,
+    v: 0,
+    per: 20,
+    avg: 0,
+    trig: 'R',
+    act: -99,
+    nin: 2,
+    probe: 0,
+    hide: 0
+  };
   window.LogicLabHost = {
     /** The structural document (parts, wires, groups, drawings, layers) plus the project name. */
     doc: () => Object.assign(snapDoc(0), { name: pname }),
@@ -3748,15 +3760,19 @@
     isReadOnly: () => RO,
     /** Give this person their own range of ids so two people never create the same id. */
     ownRange(lo, hi) {
-      const ids = [...nodes.map((n) => n.id), ...notes.map((a) => a.id), ...groups.map((g) => g.id), ...layers.map((l) => l.id)].filter(
-        (i) => i >= lo && i < hi
-      );
+      const ids = [
+        ...nodes.map((n) => n.id),
+        ...notes.map((a) => a.id),
+        ...groups.map((g) => g.id),
+        ...layers.map((l) => l.id)
+      ].filter((i) => i >= lo && i < hi);
       uid = ids.length ? Math.max(...ids) + 1 : lo + 1;
     },
     /** Pan/zoom of the main canvas (null while the breadboard view is shown, where part positions differ). */
     view: () => (vw[0] == 'bb' ? null : { v: V[0], el: cv }),
     user: () => USER,
     pid: () => PID,
+    auth: (mode, message, after) => authOpen(mode, message, after),
     /** Save on this device and push to the account now; resolves when the sync attempt has finished. */
     async syncNow() {
       autosave();
@@ -5044,7 +5060,7 @@
     e.hidden = false;
   };
   $('#asw').onclick = (e) => {
-    if (e.target.tagName == 'A') authOpen(AMODE == 'signup' ? 'login' : 'signup');
+    if (e.target.tagName == 'A') authOpen(AMODE == 'signup' ? 'login' : 'signup', '', AFTER);
   };
   $('#aoff').onclick = () => ($('#mauth').hidden = true);
   $('#au').onsubmit = async (e) => {
@@ -5072,7 +5088,13 @@
         a();
       }
     } catch (x) {
-      authErr(x.status ? x.message : 'Can’t reach the server. Check your connection and try again.');
+      if (x.status === 404 && !su) {
+        const email = f.email.value;
+        authOpen('signup', 'No account was found for this email. Create one to continue.', AFTER);
+        f.email.value = email;
+      } else {
+        authErr(x.status ? x.message : 'Can’t reach the server. Check your connection and try again.');
+      }
     }
     b.disabled = false;
   };

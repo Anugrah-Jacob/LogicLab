@@ -115,6 +115,10 @@ export async function login(request, env) {
   let ok = false;
   if (user) ok = await checkPassword(String(body.password || ''), user.pass);
   else await hashPassword('x', new Uint8Array(16)); // equalise timing for unknown emails
+  if (!user) {
+    await noteFailure(env, key);
+    return fail(404, 'Account not found. Please sign up to create an account.');
+  }
   if (!ok) {
     await noteFailure(env, key);
     return fail(401, 'Wrong email or password.');

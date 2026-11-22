@@ -30,6 +30,12 @@ await test('sign-up validates input and rejects duplicates', async () => {
   eq((await post('/auth/signup', { email, password: 'correct horse 9' })).status, 409);
 });
 await test('login works, wrong passwords are refused and throttled', async () => {
+  const missing = await post('/auth/login', {
+    email: 'missing' + Date.now() + '@example.com',
+    password: 'anything'
+  });
+  eq(missing.status, 404);
+  ok((await missing.json()).error.includes('Account not found'), 'unknown email directs the user to sign up');
   eq((await post('/auth/login', { email, password: 'correct horse 9' })).status, 200);
   for (let i = 0; i < 8; i++)
     eq((await post('/auth/login', { email, password: 'wrong password ' + i })).status, 401);

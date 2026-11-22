@@ -20,7 +20,9 @@ const vid = () => 'v' + Date.now().toString(36) + Math.random().toString(36).sli
 export async function snapshot(env, uid, pid, doc, { by = '', label = '', minGap = 0 } = {}) {
   try {
     const now = Date.now();
-    const last = await env.DB.prepare('SELECT ts, hash FROM history WHERE uid=? AND pid=? ORDER BY ts DESC LIMIT 1')
+    const last = await env.DB.prepare(
+      'SELECT ts, hash FROM history WHERE uid=? AND pid=? ORDER BY ts DESC LIMIT 1'
+    )
       .bind(uid, pid)
       .first();
     if (minGap && last && now - last.ts < minGap) return null;
@@ -62,12 +64,20 @@ export async function historyOp(env, uid, pid, body, by) {
     return json({ versions: r.results });
   }
   if (action === 'get') {
-    const row = await env.DB.prepare('SELECT id, ts, by_name AS by, label, doc FROM history WHERE uid=? AND pid=? AND id=?')
+    const row = await env.DB.prepare(
+      'SELECT id, ts, by_name AS by, label, doc FROM history WHERE uid=? AND pid=? AND id=?'
+    )
       .bind(uid, pid, String(body.vid || ''))
       .first();
     if (!row) return fail(404, 'Version not found.');
     try {
-      return json({ id: row.id, ts: row.ts, by: row.by, label: row.label, doc: await readDoc(env, 'history', row.id, row.doc) });
+      return json({
+        id: row.id,
+        ts: row.ts,
+        by: row.by,
+        label: row.label,
+        doc: await readDoc(env, 'history', row.id, row.doc)
+      });
     } catch (e) {
       console.log('history read failed', e.message);
       return fail(502, 'Could not read this version from storage.');
@@ -86,12 +96,15 @@ export async function historyOp(env, uid, pid, body, by) {
 /** Remove every version of a project (used when the project is deleted). Never throws. */
 export async function dropHistory(env, uid, pid) {
   try {
-    const rows = await env.DB.prepare('SELECT id, doc FROM history WHERE uid=? AND pid=?').bind(uid, pid).all();
+    const rows = await env.DB.prepare('SELECT id, doc FROM history WHERE uid=? AND pid=?')
+      .bind(uid, pid)
+      .all();
     for (const r of rows.results) await dropDoc(env, 'history', r.id, r.doc);
     await env.DB.prepare('DELETE FROM history WHERE uid=? AND pid=?').bind(uid, pid).run();
     const sh = await env.DB.prepare('SELECT id FROM shares WHERE uid=? AND pid=?').bind(uid, pid).first();
     if (sh) {
       await env.DB.prepare('DELETE FROM peers WHERE room=?').bind(sh.id).run();
+      await env.DB.prepare('DELETE FROM collaboration_invites WHERE room=?').bind(sh.id).run();
       await env.DB.prepare('DELETE FROM shares WHERE id=?').bind(sh.id).run();
     }
   } catch (e) {

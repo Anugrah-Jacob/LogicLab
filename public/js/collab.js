@@ -19,7 +19,20 @@
   const $ = (s, r = document) => r.querySelector(s),
     esc = (s) => String(s).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';'),
     rid = () => Math.random().toString(36).slice(2, 10);
-  const COLORS = ['#e8543a', '#2f80ed', '#16a34a', '#3b82f6', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#14b8a6', '#f43f5e', '#2563eb'];
+  const COLORS = [
+    '#e8543a',
+    '#2f80ed',
+    '#16a34a',
+    '#3b82f6',
+    '#f59e0b',
+    '#06b6d4',
+    '#ec4899',
+    '#84cc16',
+    '#6366f1',
+    '#14b8a6',
+    '#f43f5e',
+    '#2563eb'
+  ];
   const initials = (n) =>
     String(n || '?')
       .trim()
@@ -32,12 +45,20 @@
   const ROLE_TEXT = { owner: 'Owner', edit: 'Can edit', view: 'View only' };
   const ago = (t) => {
     const s = (Date.now() - t) / 1000;
-    return s < 60 ? 'Just now' : s < 3600 ? Math.floor(s / 60) + ' min ago' : s < 86400 ? Math.floor(s / 3600) + ' h ago' : new Date(t).toLocaleDateString();
+    return s < 60
+      ? 'Just now'
+      : s < 3600
+        ? Math.floor(s / 60) + ' min ago'
+        : s < 86400
+          ? Math.floor(s / 3600) + ' h ago'
+          : new Date(t).toLocaleDateString();
   };
   const ICON = {
     lock: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
-    globe: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.3 3 14.7 0 18M12 3c-3 3.3-3 14.7 0 18"/></svg>',
-    check: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    globe:
+      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.3 3 14.7 0 18M12 3c-3 3.3-3 14.7 0 18"/></svg>',
+    check:
+      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     chev: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
     down: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
     chat: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
@@ -45,7 +66,8 @@
     hist: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
     dl: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>',
     more: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
-    share: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg>',
+    share:
+      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg>',
     send: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 20l18-8L3 4v6l11 2-11 2z"/></svg>'
   };
 
@@ -81,10 +103,32 @@
     if (S) await leave(true);
     const rep = new M.Replica(info.slot);
     S = {
-      room: info.room, peer: info.peer, token: info.token, role: info.role, slot: info.slot, name: info.name,
-      ice: info.ice, title: info.title, rep, pcs: new Map(), roster: new Map(), since: 0, polling: 0,
-      synced: !(info.peers && info.peers.length), needFrom: null, tries: new Map(), chat: [], unread: 0,
-      cursors: new Map(), mic: null, dirty: 0, saveT: 0, lastSave: 0, owner: asOwner, speaking: new Set(), pending: 0
+      room: info.room,
+      peer: info.peer,
+      token: info.token,
+      role: info.role,
+      slot: info.slot,
+      name: info.name,
+      ice: info.ice,
+      title: info.title,
+      rep,
+      pcs: new Map(),
+      roster: new Map(),
+      since: 0,
+      polling: 0,
+      synced: !(info.peers && info.peers.length),
+      needFrom: null,
+      tries: new Map(),
+      chat: [],
+      unread: 0,
+      cursors: new Map(),
+      mic: null,
+      dirty: 0,
+      saveT: 0,
+      lastSave: 0,
+      owner: asOwner,
+      speaking: new Set(),
+      pending: 0
     };
     if (!asOwner) host.load(info.doc, info.title);
     host.readOnly(info.role === 'view');
@@ -99,7 +143,8 @@
     HOOK.home = () => leave();
     (info.peers || []).forEach((p) => S.roster.set(p.peer, p));
     syncRoster(info.peers || []);
-    if (!S.synced) setTimeout(() => S && !S.synced && ((S.synced = true), S.needFrom && (S.needFrom = null)), 9000);
+    if (!S.synced)
+      setTimeout(() => S && !S.synced && ((S.synced = true), S.needFrom && (S.needFrom = null)), 9000);
     pollLoop();
     cursorLoop();
     levelLoop();
@@ -132,7 +177,10 @@
   addEventListener('pagehide', () => {
     if (!S) return;
     try {
-      navigator.sendBeacon('/api/collab/' + S.room + '/leave', new Blob([JSON.stringify({ peer: S.peer, token: S.token })], { type: 'application/json' }));
+      navigator.sendBeacon(
+        '/api/collab/' + S.room + '/leave',
+        new Blob([JSON.stringify({ peer: S.peer, token: S.token })], { type: 'application/json' })
+      );
     } catch (e) {}
   });
 
@@ -153,15 +201,25 @@
         }
       } catch (e) {
         if (e.status === 410 || e.status === 403) {
-          toast(e.status === 410 ? 'This session ended or the link changed.' : 'The session was closed.', 'warn', 5000);
+          toast(
+            e.status === 410 ? 'This session ended or the link changed.' : 'The session was closed.',
+            'warn',
+            5000
+          );
           leave(true);
           return;
         }
         fails++;
       }
       if (S !== s) return;
-      const waiting = [...s.pcs.values()].some((c) => c.state !== 'open') || [...s.roster.keys()].some((id) => id !== s.peer && !s.pcs.has(id));
-      const delay = fails ? Math.min(30000, 2000 * fails) : waiting && Date.now() - s.pending < 40000 ? 1200 : 6000;
+      const waiting =
+        [...s.pcs.values()].some((c) => c.state !== 'open') ||
+        [...s.roster.keys()].some((id) => id !== s.peer && !s.pcs.has(id));
+      const delay = fails
+        ? Math.min(30000, 2000 * fails)
+        : waiting && Date.now() - s.pending < 40000
+          ? 1200
+          : 6000;
       await new Promise((ok) => setTimeout(ok, delay));
     }
   }
@@ -199,14 +257,32 @@
   function signal(to, kind, data) {
     if (!S) return;
     S.pending = Date.now();
-    api('/collab/' + S.room + '/signal', { peer: S.peer, token: S.token, to, kind, data: JSON.stringify(data) }).catch(() => {});
+    api('/collab/' + S.room + '/signal', {
+      peer: S.peer,
+      token: S.token,
+      to,
+      kind,
+      data: JSON.stringify(data)
+    }).catch(() => {});
   }
 
   /* ---- peer connections ---- */
   function connect(id, initiator) {
     const s = S,
       pc = new RTCPeerConnection({ iceServers: s.ice }),
-      c = { id, pc, dc: null, state: 'connecting', ice: [], early: [], iceT: 0, audio: null, speaking: 0, muted: 0, chunks: new Map() };
+      c = {
+        id,
+        pc,
+        dc: null,
+        state: 'connecting',
+        ice: [],
+        early: [],
+        iceT: 0,
+        audio: null,
+        speaking: 0,
+        muted: 0,
+        chunks: new Map()
+      };
     s.pcs.set(id, c);
     // The offering side adds the audio line; the answering side adopts the one in the offer (see onSignal).
     if (initiator) {
@@ -311,7 +387,8 @@
     if (s.length <= CHUNK) return c.dc.send(s);
     const id = rid(),
       n = Math.ceil(s.length / CHUNK);
-    for (let i = 0; i < n; i++) c.dc.send(JSON.stringify({ t: 'chunk', id, i, n, d: s.slice(i * CHUNK, (i + 1) * CHUNK) }));
+    for (let i = 0; i < n; i++)
+      c.dc.send(JSON.stringify({ t: 'chunk', id, i, n, d: s.slice(i * CHUNK, (i + 1) * CHUNK) }));
   }
   function broadcast(obj) {
     if (S) S.pcs.forEach((c) => sendTo(c, obj));
@@ -345,7 +422,8 @@
     } else if (m.t === 'full') {
       if (canEdit(role) && S.needFrom === c.id) {
         applyRemote(m.ops);
-        if (m.sw && typeof m.sw === 'object') for (const [id, v] of Object.entries(m.sw)) host.setSwitch(+id, v);
+        if (m.sw && typeof m.sw === 'object')
+          for (const [id, v] of Object.entries(m.sw)) host.setSwitch(+id, v);
         S.synced = true;
         S.needFrom = null;
         toast('Connected. You have the latest version.', 'ok', 2200);
@@ -358,9 +436,12 @@
     } else if (m.t === 'sw') {
       if (canEdit(role) && Number.isFinite(+m.id)) host.setSwitch(+m.id, m.v);
     } else if (m.t === 'cur') {
-      if (Number.isFinite(m.x) && Number.isFinite(m.y)) S.cursors.set(c.id, { x: m.x, y: m.y, at: Date.now() });
+      if (Number.isFinite(m.x) && Number.isFinite(m.y))
+        S.cursors.set(c.id, { x: m.x, y: m.y, at: Date.now() });
     } else if (m.t === 'chat') {
-      const text = String(m.text || '').slice(0, 600).trim();
+      const text = String(m.text || '')
+        .slice(0, 600)
+        .trim();
       if (text) addChat({ from: c.id, name: nameOf(c.id), text, ts: Date.now(), me: false });
     }
   }
@@ -396,14 +477,21 @@
     if (!s || s.owner) return; // the owner's own account sync already saves the project
     s.dirty = 1;
     clearTimeout(s.saveT);
-    s.saveT = setTimeout(() => S === s && saveDoc(s).catch(() => {}), Math.max(2500, 5000 - (Date.now() - s.lastSave)));
+    s.saveT = setTimeout(
+      () => S === s && saveDoc(s).catch(() => {}),
+      Math.max(2500, 5000 - (Date.now() - s.lastSave))
+    );
   }
   async function saveDoc(s) {
     if (!s.dirty) return;
     s.dirty = 0;
     s.lastSave = Date.now();
     try {
-      await api('/collab/' + s.room + '/doc', { peer: s.peer, token: s.token, doc: host.project(), name: host.doc().name }, 'PUT');
+      await api(
+        '/collab/' + s.room + '/doc',
+        { peer: s.peer, token: s.token, doc: host.project(), name: host.doc().name },
+        'PUT'
+      );
     } catch (e) {
       s.dirty = 1;
       if (e.status === 404) toast(e.message, 'warn', 6000);
@@ -444,12 +532,18 @@
           el = document.createElement('div');
           el.className = 'cb-cur';
           el.dataset.p = id;
-          el.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M1 1l5 13 2-5 5-2z" fill="currentColor" stroke="#fff" stroke-width="1"/></svg><span></span>';
+          el.innerHTML =
+            '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M1 1l5 13 2-5 5-2z" fill="currentColor" stroke="#fff" stroke-width="1"/></svg><span></span>';
           el.style.setProperty('--c', COLORS[p.slot % COLORS.length]);
           el.lastChild.textContent = p.name;
           box.append(el);
         }
-        el.style.transform = 'translate(' + (r.left - w.left + v.v.x + c.x * v.v.s) + 'px,' + (r.top - w.top + v.v.y + c.y * v.v.s) + 'px)';
+        el.style.transform =
+          'translate(' +
+          (r.left - w.left + v.v.x + c.x * v.v.s) +
+          'px,' +
+          (r.top - w.top + v.v.y + c.y * v.v.s) +
+          'px)';
       }
     }
     box.querySelectorAll('.cb-cur').forEach((el) => !seen.has(el.dataset.p) && el.remove());
@@ -508,9 +602,12 @@
       S.mic = null;
       S.pcs.forEach((c) => c.sender && c.sender.replaceTrack(null).catch(() => {}));
     } else {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast('Voice needs a secure (https) page and a modern browser.', 'warn');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+        return toast('Voice needs a secure (https) page and a modern browser.', 'warn');
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
         if (!S) return stream.getTracks().forEach((t) => t.stop());
         S.mic = { stream, track: stream.getAudioTracks()[0], lvl: level(stream) };
         if (actx && actx.state === 'suspended') actx.resume();
@@ -534,7 +631,9 @@
     renderBar();
   }
   function sendChat(text) {
-    text = String(text || '').trim().slice(0, 600);
+    text = String(text || '')
+      .trim()
+      .slice(0, 600);
     if (!text || !S) return;
     broadcast({ t: 'chat', text });
     addChat({ from: S.peer, name: S.name, text, ts: Date.now(), me: true });
@@ -542,7 +641,8 @@
 
   /* ---------------------------------------------------------------- owner: share record and access level */
   const accessOf = (sh) => (!sh || (!sh.viewOn && !sh.editOn) ? 'none' : sh.editOn ? 'edit' : 'view');
-  const linkOf = (sh) => (sh ? location.origin + '/#join=' + sh.id + '.' + (sh.editOn ? sh.editKey : sh.viewKey) : '');
+  const linkOf = (sh) =>
+    sh ? location.origin + '/#join=' + sh.id + '.' + (sh.editOn ? sh.editKey : sh.viewKey) : '';
   async function loadShare() {
     const pid = host.pid();
     share = null;
@@ -572,7 +672,15 @@
           share = (await api('/collab/share', { action: 'create', pid })).share;
         }
       }
-      if (share) share = (await api('/collab/share', { action: 'toggle', pid, viewOn: level === 'view', editOn: level === 'edit' })).share;
+      if (share)
+        share = (
+          await api('/collab/share', {
+            action: 'toggle',
+            pid,
+            viewOn: level === 'view',
+            editOn: level === 'edit'
+          })
+        ).share;
       ui.note = '';
       if (level !== 'none' && !S) await goLive();
       else if (level === 'none' && S && S.owner) await leave(true);
@@ -603,6 +711,50 @@
     ui.busy = '';
     renderPopover();
   }
+  async function addInvite() {
+    const emailInput = $('#cb-em');
+    const email = emailInput?.value?.trim() || '';
+    const role = ($('#cb-inv-role') || {}).value || 'edit';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return toast('Enter a valid email address.', 'warn');
+    ui.busy = 'invite';
+    ui.note = '';
+    emailInput && emailInput.blur();
+    renderPopover();
+    try {
+      share = (await api('/collab/share', { action: 'invite', pid: host.pid(), email, role })).share;
+      ui.note = 'Access added for ' + email + '. They must sign in or sign up with this email.';
+    } catch (e) {
+      ui.note = e.message;
+    }
+    ui.busy = '';
+    renderPopover();
+  }
+  async function removeInvite(email) {
+    ui.busy = 'invite';
+    try {
+      share = (await api('/collab/share', { action: 'uninvite', pid: host.pid(), email })).share;
+      ui.note = 'Access removed for ' + email + '.';
+    } catch (e) {
+      ui.note = e.message;
+    }
+    ui.busy = '';
+    renderPopover();
+  }
+  async function protectLink(password) {
+    ui.busy = 'password';
+    ui.note = '';
+    renderPopover();
+    try {
+      share = (await api('/collab/share', { action: 'password', pid: host.pid(), password })).share;
+      ui.note = password
+        ? 'Password protection is on. Invitees must sign in and enter this password.'
+        : 'Password protection removed.';
+    } catch (e) {
+      ui.note = e.message;
+    }
+    ui.busy = '';
+    renderPopover();
+  }
   async function stopSharing() {
     if (!confirm('Stop sharing? Everyone is disconnected and the link stops working.')) return;
     try {
@@ -620,7 +772,50 @@
     const m = /^#join=([A-Za-z0-9_-]{6,40})\.([A-Za-z0-9_-]{6,60})$/.exec(location.hash);
     return m ? { room: m[1], key: m[2] } : null;
   }
-  function joinDialog(j, err) {
+  function parseInvite() {
+    const m = /^#invite=([A-Za-z0-9_-]{6,40})$/.exec(location.hash);
+    return m ? { room: m[1], invite: true, roomOnly: true } : null;
+  }
+  async function openInvitation(invite) {
+    if (!host.user()) {
+      host.auth(
+        'login',
+        'Sign in or create an account using the email address this project was shared with.',
+        () => openInvitation(invite)
+      );
+      return;
+    }
+    const d = document.createElement('div');
+    d.className = 'cb-modal';
+    d.innerHTML =
+      '<div class="cb-card" role="dialog" aria-modal="true" aria-labelledby="cbi"><h2 id="cbi">You’ve been invited to a LogicLab project</h2><p class="cb-mu">You’re signed in as <b>' +
+      esc(host.user().email) +
+      '.</b></p><div class="cb-row"><button class="cb-btn" id="cb-no">Not now</button><button class="cb-btn cb-pri" id="cb-go">Join project</button></div></div>';
+    document.body.append(d);
+    $('#cb-no', d).onclick = () => d.remove();
+    $('#cb-go', d).onclick = async () => {
+      $('#cb-go', d).disabled = true;
+      $('#cb-go', d).textContent = 'Joining…';
+      try {
+        const info = await api('/collab/invite/join', {
+          share: invite.room,
+          name: (host.user() || {}).name
+        });
+        d.remove();
+        await startSession(info, false);
+        toast(
+          info.role === 'view' ? 'Joined as view only.' : 'Joined. Your changes are shared live.',
+          'ok',
+          4500
+        );
+      } catch (e) {
+        d.remove();
+        if (e.status === 401) host.auth('login', e.message, () => openInvitation(invite));
+        else toast(e.message, 'error', 5000);
+      }
+    };
+  }
+  function joinDialog(j, err, savedPassword = '', savedName = '') {
     closeDialog();
     const d = document.createElement('div');
     d.className = 'cb-modal';
@@ -628,31 +823,59 @@
     d.innerHTML =
       '<div class="cb-card" role="dialog" aria-modal="true" aria-labelledby="cbj">' +
       '<h2 id="cbj">You’ve been invited to a LogicLab project</h2>' +
-      '<p class="cb-mu">Pick a name so others can see who you are. No account is needed.</p>' +
+      '<p class="cb-mu">' +
+      (j.roomOnly
+        ? 'Sign in with the email address this project was shared with.'
+        : 'Pick a name so others can see who you are. If this link is password-protected, enter its password.') +
+      '</p>' +
       (err ? '<div class="cb-err">' + esc(err) + '</div>' : '') +
-      '<input id="cb-nm" maxlength="24" placeholder="Your name" autocomplete="name" />' +
+      (j.roomOnly ? '' : '<input id="cb-nm" maxlength="24" placeholder="Your name" autocomplete="name" />') +
+      (j.roomOnly
+        ? ''
+        : '<input id="cb-jpw" type="password" placeholder="Password (if required)" autocomplete="current-password" />') +
       '<div class="cb-row"><button class="cb-btn" id="cb-no">Not now</button><button class="cb-btn cb-pri" id="cb-go">Join project</button></div></div>';
     document.body.append(d);
     const nm = $('#cb-nm', d);
-    nm.value = authName();
-    nm.focus();
+    if (nm) {
+      nm.value = savedName || authName();
+      nm.focus();
+    } else $('#cb-go', d).focus();
     const go = async () => {
-      const name = nm.value.trim() || 'Guest';
-      localStorage.setItem('ll:guestname', name);
+      const name = (nm && nm.value.trim()) || (host.user() || {}).name || 'Guest';
+      const password = ($('#cb-jpw', d) || {}).value || '';
+      if (nm) localStorage.setItem('ll:guestname', name);
       $('#cb-go', d).disabled = true;
       $('#cb-go', d).textContent = 'Joining…';
       try {
-        const info = await api('/collab/join', { share: j.room, key: j.key, name });
+        const info = j.invite
+          ? await api('/collab/invite/join', { share: j.room, name })
+          : await api('/collab/join', { share: j.room, key: j.key, name, password });
         d.remove();
         await startSession(info, false);
-        toast(info.role === 'view' ? 'Joined as view only. You can run the circuit and press switches.' : 'Joined. Your changes are shared live.', 'ok', 4500);
+        toast(
+          info.role === 'view'
+            ? 'Joined as view only. You can run the circuit and press switches.'
+            : 'Joined. Your changes are shared live.',
+          'ok',
+          4500
+        );
         if (actx && actx.state === 'suspended') actx.resume();
       } catch (e) {
-        joinDialog(j, e.message);
+        if (e.status === 401 && /sign in/i.test(e.message)) {
+          d.remove();
+          host.auth('login', e.message, () => joinDialog(j, null, password, name));
+          return;
+        }
+        joinDialog(j, e.message, password, name);
       }
     };
     $('#cb-go', d).onclick = go;
-    nm.onkeydown = (e) => e.key === 'Enter' && go();
+    if (nm) nm.onkeydown = (e) => e.key === 'Enter' && go();
+    const pw = $('#cb-jpw', d);
+    if (pw) {
+      pw.value = savedPassword;
+      pw.onkeydown = (e) => e.key === 'Enter' && go();
+    }
     $('#cb-no', d).onclick = () => {
       d.remove();
       history.replaceState(null, '', location.pathname + location.search);
@@ -664,7 +887,8 @@
 
   /* ---------------------------------------------------------------- history */
   async function histApi(body) {
-    if (S) return api('/collab/' + S.room + '/history', Object.assign({ peer: S.peer, token: S.token }, body));
+    if (S)
+      return api('/collab/' + S.room + '/history', Object.assign({ peer: S.peer, token: S.token }, body));
     return api('/projects/' + encodeURIComponent(host.pid()) + '/history', body);
   }
   async function openHistory() {
@@ -687,7 +911,16 @@
           ? versions
               .map(
                 (v) =>
-                  '<div class="cb-ver"><div><b>' + esc(v.label || 'Automatic version') + '</b><span class="cb-mu">' + esc(ago(v.ts)) + (v.by ? ' · ' + esc(v.by) : '') + ' · ' + Math.max(1, Math.round(v.bytes / 1024)) + ' KB</span></div><button class="cb-btn" data-v="' + esc(v.id) + '">Restore</button></div>'
+                  '<div class="cb-ver"><div><b>' +
+                  esc(v.label || 'Automatic version') +
+                  '</b><span class="cb-mu">' +
+                  esc(ago(v.ts)) +
+                  (v.by ? ' · ' + esc(v.by) : '') +
+                  ' · ' +
+                  Math.max(1, Math.round(v.bytes / 1024)) +
+                  ' KB</span></div><button class="cb-btn" data-v="' +
+                  esc(v.id) +
+                  '">Restore</button></div>'
               )
               .join('')
           : '<div class="cb-mu">No versions yet. Make a change, or save one now.</div>';
@@ -698,7 +931,11 @@
     load();
     $('#cb-sv', d).onclick = async () => {
       try {
-        const r = await histApi({ action: 'save', label: $('#cb-lb', d).value.trim() || 'Saved version', doc: host.project() });
+        const r = await histApi({
+          action: 'save',
+          label: $('#cb-lb', d).value.trim() || 'Saved version',
+          doc: host.project()
+        });
         toast(r.unchanged ? 'Nothing changed since the last version.' : 'Version saved.', 'ok');
         $('#cb-lb', d).value = '';
         load();
@@ -739,13 +976,34 @@
   pop.id = 'cb-pop';
   pop.hidden = true;
   document.body.append(pop);
+  pop.addEventListener('focusout', () => {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (
+        ui.open &&
+        (!active ||
+          !pop.contains(active) ||
+          !active.matches('input, textarea, select'))
+      )
+        renderPopover();
+    }, 0);
+  });
   const chatBox = document.createElement('div');
   chatBox.id = 'cb-chat';
   chatBox.hidden = true;
   document.body.append(chatBox);
 
   const avatar = (p, id, big) =>
-    '<span class="cb-av' + (S && S.speaking.has(id) ? ' cb-sp' : '') + (big ? ' cb-big' : '') + '" style="background:' + COLORS[(p.slot || 0) % COLORS.length] + '" title="' + esc(p.name) + '">' + esc(initials(p.name)) + '</span>';
+    '<span class="cb-av' +
+    (S && S.speaking.has(id) ? ' cb-sp' : '') +
+    (big ? ' cb-big' : '') +
+    '" style="background:' +
+    COLORS[(p.slot || 0) % COLORS.length] +
+    '" title="' +
+    esc(p.name) +
+    '">' +
+    esc(initials(p.name)) +
+    '</span>';
   function everyone() {
     if (!S) return [];
     const me = { peer: S.peer, name: S.name + ' (you)', role: S.role, slot: S.slot };
@@ -760,10 +1018,27 @@
     bar.hidden = false;
     const people = everyone();
     bar.innerHTML =
-      '<span class="cb-stack">' + people.slice(0, 4).map((p) => avatar(p, p.peer)).join('') + (people.length > 4 ? '<span class="cb-av cb-more">+' + (people.length - 4) + '</span>' : '') + '</span>' +
+      '<span class="cb-stack">' +
+      people
+        .slice(0, 4)
+        .map((p) => avatar(p, p.peer))
+        .join('') +
+      (people.length > 4 ? '<span class="cb-av cb-more">+' + (people.length - 4) + '</span>' : '') +
+      '</span>' +
       (S.role === 'view' ? '<span class="cb-pill">View only</span>' : '') +
-      '<button class="cb-ic' + (S.mic ? ' cb-on' : '') + '" id="cb-mic" title="' + (S.mic ? 'Turn microphone off' : 'Talk to everyone') + '" aria-label="Microphone">' + ICON.mic + '</button>' +
-      '<button class="cb-ic' + (ui.chat ? ' cb-on' : '') + '" id="cb-cht" title="Chat" aria-label="Chat">' + ICON.chat + (S.unread ? '<i>' + S.unread + '</i>' : '') + '</button>';
+      '<button class="cb-ic' +
+      (S.mic ? ' cb-on' : '') +
+      '" id="cb-mic" title="' +
+      (S.mic ? 'Turn microphone off' : 'Talk to everyone') +
+      '" aria-label="Microphone">' +
+      ICON.mic +
+      '</button>' +
+      '<button class="cb-ic' +
+      (ui.chat ? ' cb-on' : '') +
+      '" id="cb-cht" title="Chat" aria-label="Chat">' +
+      ICON.chat +
+      (S.unread ? '<i>' + S.unread + '</i>' : '') +
+      '</button>';
     $('#cb-mic', bar).onclick = toggleMic;
     $('#cb-cht', bar).onclick = toggleChat;
   }
@@ -795,7 +1070,12 @@
   document.addEventListener('click', (e) => {
     // composedPath() is fixed when the click starts, so it still works after a button re-rendered the popover.
     const inside = e.composedPath();
-    if (ui.open && !inside.includes(pop) && !inside.includes(shareBtn) && !inside.some((n) => n.classList && n.classList.contains('cb-modal')))
+    if (
+      ui.open &&
+      !inside.includes(pop) &&
+      !inside.includes(shareBtn) &&
+      !inside.some((n) => n.classList && n.classList.contains('cb-modal'))
+    )
       togglePopover(false);
   });
   document.addEventListener('keydown', (e) => {
@@ -807,57 +1087,203 @@
   addEventListener('resize', () => ui.open && placePop());
 
   const ACCESS = {
-    none: { icon: ICON.lock, title: 'Only you can access', text: 'Only you can open this project using this link.' },
-    view: { icon: ICON.globe, title: 'Anyone with the link can view', text: 'They can look around, run the circuit and press switches. They cannot change it. <b>No sign-in required.</b>' },
-    edit: { icon: ICON.globe, title: 'Anyone with the link can edit', text: 'They can change the circuit together with you, live. <b>No sign-in required.</b>' }
+    none: {
+      icon: ICON.lock,
+      title: 'Only you can access',
+      text: 'Only you can open this project using this link.'
+    },
+    view: {
+      icon: ICON.globe,
+      title: 'Anyone with the link can view',
+      text: 'They can look around, run the circuit and press switches. They cannot change it. <b>Sign-in is optional unless you add a password.</b>'
+    },
+    edit: {
+      icon: ICON.globe,
+      title: 'Anyone with the link can edit',
+      text: 'They can change the circuit together with you, live. <b>Sign-in is optional unless you add a password.</b>'
+    }
   };
   function renderPopover() {
     if (pop.hidden) return;
+    const active = document.activeElement;
+    if (active && pop.contains(active) && active.matches('input, textarea, select')) return;
     const u = host.user(),
       owner = !S || S.owner,
       acc = accessOf(share);
     let h = '<h3>' + (S && !S.owner ? 'Live session' : 'Share this project') + '</h3>';
     if (S && !S.owner) {
-      h += '<p class="cb-mu">' + esc(S.title || 'Shared project') + ' · you can <b>' + (S.role === 'view' ? 'view and run' : 'edit') + '</b> this circuit.</p>';
+      h +=
+        '<p class="cb-mu">' +
+        esc(S.title || 'Shared project') +
+        ' · you can <b>' +
+        (S.role === 'view' ? 'view and run' : 'edit') +
+        '</b> this circuit.</p>';
     } else if (!u) {
-      h += '<div class="cb-note">Sign in to share this project. Your projects are saved to your account so others can open them.</div><button class="cb-btn cb-pri cb-full" id="cb-si">Sign in</button>';
+      h +=
+        '<div class="cb-note">Sign in to share this project. Your projects are saved to your account so others can open them.</div><button class="cb-btn cb-pri cb-full" id="cb-si">Sign in</button>';
     } else {
       h += '<label class="cb-lbl">People with access</label>';
-      h += '<div class="cb-ppl">' + (S ? everyone().map((p) => avatar(p, p.peer, 1)).join('') : avatar({ name: u.name, slot: 0 }, '', 1)) + '</div>';
-      h += '<div class="cb-inv"><input id="cb-em" type="email" placeholder="Invite by email" ' + (acc === 'none' ? 'disabled' : '') + ' /></div>';
-      h += '<label class="cb-lbl">Collaboration link</label>';
-      h += '<button class="cb-sel" id="cb-acc" ' + (ui.busy ? 'disabled' : '') + '><span class="cb-i">' + ACCESS[acc].icon + '</span><span>' + ACCESS[acc].title + '</span>' + ICON.down + '</button>';
-      if (ui.menu) {
-        h += '<div class="cb-menu" id="cb-mn">' + ['none', 'view', 'edit'].map((k) => '<button data-a="' + k + '" class="' + (k === acc ? 'cb-cur-opt' : '') + '"><span class="cb-i">' + ACCESS[k].icon + '</span><span class="cb-tx"><b>' + ACCESS[k].title + '</b><small>' + ACCESS[k].text + '</small></span>' + (k === acc ? '<span class="cb-ck">' + ICON.check + '</span>' : '') + '</button>').join('') + '</div>';
+      h +=
+        '<div class="cb-ppl">' +
+        (S
+          ? everyone()
+              .map((p) => avatar(p, p.peer, 1))
+              .join('')
+          : avatar({ name: u.name, slot: 0 }, '', 1)) +
+        '</div>';
+      if (share && share.invites && share.invites.length) {
+        h +=
+          '<div class="cb-invite-list">' +
+          share.invites
+            .map(
+              (inv) =>
+                '<div class="cb-invite-row"><span class="cb-invite-mail">' +
+                esc(inv.email) +
+                '<small>Can ' +
+                (inv.role === 'edit' ? 'edit' : 'view') +
+                ' · account required</small></span><button class="cb-invite-mailbtn" data-mail="' +
+                esc(inv.email) +
+                '" title="Email invite link">Email</button><button class="cb-invite-remove" data-remove="' +
+                esc(inv.email) +
+                '" aria-label="Remove ' +
+                esc(inv.email) +
+                '" title="Remove access">×</button></div>'
+            )
+            .join('') +
+          '</div>';
       }
-      if (acc !== 'none') h += '<button class="cb-btn cb-pri cb-full" id="cb-copy">Copy link</button>';
-      else h += '<p class="cb-mu cb-sm">' + ACCESS.none.text + '</p>';
+      h +=
+        '<div class="cb-inv"><input id="cb-em" type="text" inputmode="email" placeholder="Invite by email" aria-label="Invite by email" autocomplete="off" autocapitalize="off" spellcheck="false" /><select id="cb-inv-role" aria-label="Invitation access"><option value="edit">Can edit</option><option value="view">Can view</option></select><button class="cb-btn cb-pri" id="cb-add-invite" ' +
+        (ui.busy === 'invite' ? 'disabled' : '') +
+        '>Add</button></div>';
+      h +=
+        '<p class="cb-mu cb-sm">Invitees sign in or sign up using this email address. An invite link is available after adding them.</p>';
+      h += '<label class="cb-lbl">Collaboration link</label>';
+      h +=
+        '<button class="cb-sel" id="cb-acc" ' +
+        (ui.busy ? 'disabled' : '') +
+        '><span class="cb-i">' +
+        ACCESS[acc].icon +
+        '</span><span>' +
+        ACCESS[acc].title +
+        '</span>' +
+        ICON.down +
+        '</button>';
+      if (ui.menu) {
+        h +=
+          '<div class="cb-menu" id="cb-mn">' +
+          ['none', 'view', 'edit']
+            .map(
+              (k) =>
+                '<button data-a="' +
+                k +
+                '" class="' +
+                (k === acc ? 'cb-cur-opt' : '') +
+                '"><span class="cb-i">' +
+                ACCESS[k].icon +
+                '</span><span class="cb-tx"><b>' +
+                ACCESS[k].title +
+                '</b><small>' +
+                ACCESS[k].text +
+                '</small></span>' +
+                (k === acc ? '<span class="cb-ck">' + ICON.check + '</span>' : '') +
+                '</button>'
+            )
+            .join('') +
+          '</div>';
+      }
+      if (acc !== 'none') {
+        h += '<button class="cb-btn cb-pri cb-full" id="cb-copy">Copy link</button>';
+        h +=
+          '<div class="cb-password"><input id="cb-link-pw" type="password" maxlength="128" placeholder="' +
+          (share && share.hasPassword
+            ? 'Change password (8+ characters)'
+            : 'Add password protection (8+ characters)') +
+          '" autocomplete="new-password" /><button class="cb-btn" id="cb-save-pw" ' +
+          (ui.busy === 'password' ? 'disabled' : '') +
+          '>Save password</button>' +
+          (share && share.hasPassword
+            ? '<button class="cb-btn cb-clear-pw" id="cb-clear-pw">Remove</button>'
+            : '') +
+          '</div>' +
+          '<p class="cb-mu cb-sm">' +
+          (share && share.hasPassword
+            ? 'Password protection is on. People need an account and the password to join.'
+            : 'Password protection is optional. Protected links require a LogicLab account.') +
+          '</p>';
+      } else h += '<p class="cb-mu cb-sm">' + ACCESS.none.text + '</p>';
     }
     if (ui.note) h += '<div class="cb-note">' + esc(ui.note) + '</div>';
     if (S) {
-      h += '<div class="cb-sep"></div><label class="cb-lbl">In this session</label><div class="cb-list2">' +
-        everyone().map((p) => '<div class="cb-person">' + avatar(p, p.peer) + '<span class="cb-nm">' + esc(p.name) + '</span><span class="cb-role">' + ROLE_TEXT[p.role] + '</span>' + peerState(p) + '</div>').join('') + '</div>';
+      h +=
+        '<div class="cb-sep"></div><label class="cb-lbl">In this session</label><div class="cb-list2">' +
+        everyone()
+          .map(
+            (p) =>
+              '<div class="cb-person">' +
+              avatar(p, p.peer) +
+              '<span class="cb-nm">' +
+              esc(p.name) +
+              '</span><span class="cb-role">' +
+              ROLE_TEXT[p.role] +
+              '</span>' +
+              peerState(p) +
+              '</div>'
+          )
+          .join('') +
+        '</div>';
     }
     h += '<div class="cb-sep"></div><div class="cb-rows">';
     if (S) {
       h += row('cb-r-chat', ICON.chat, 'Chat', S.unread ? S.unread + ' new' : '');
       h += row('cb-r-mic', ICON.mic, S.mic ? 'Turn microphone off' : 'Talk (voice chat)', S.mic ? 'On' : '');
     }
-    if (u && host.pid() && (!S || canEdit(S.role))) h += row('cb-r-hist', ICON.hist, 'Version history', '', 1);
+    if (u && host.pid() && (!S || canEdit(S.role)))
+      h += row('cb-r-hist', ICON.hist, 'Version history', '', 1);
     h += row('cb-r-dl', ICON.dl, 'Download', '', 1);
     if (S) h += row('cb-r-leave', ICON.more, S.owner ? 'End my live session' : 'Leave session', '');
     if (owner && u && share) h += row('cb-r-more', ICON.more, 'More', '', 1);
     h += '</div>';
-    if (ui.more && share) h += '<div class="cb-sub"><button id="cb-rst" class="cb-btn cb-full">Reset link (old link stops working)</button><button id="cb-stop" class="cb-btn cb-full cb-dng">Stop sharing</button></div>';
+    if (ui.more && share)
+      h +=
+        '<div class="cb-sub"><button id="cb-rst" class="cb-btn cb-full">Reset link (old link stops working)</button><button id="cb-stop" class="cb-btn cb-full cb-dng">Stop sharing</button></div>';
     pop.innerHTML = h;
     wirePopover();
   }
-  const row = (id, icon, label, badge, chev) => '<button class="cb-rw" id="' + id + '"><span class="cb-i">' + icon + '</span><span class="cb-tx">' + label + '</span>' + (badge ? '<em>' + esc(badge) + '</em>' : '') + (chev ? ICON.chev : '') + '</button>';
+  const row = (id, icon, label, badge, chev) =>
+    '<button class="cb-rw" id="' +
+    id +
+    '"><span class="cb-i">' +
+    icon +
+    '</span><span class="cb-tx">' +
+    label +
+    '</span>' +
+    (badge ? '<em>' + esc(badge) + '</em>' : '') +
+    (chev ? ICON.chev : '') +
+    '</button>';
   function peerState(p) {
     if (!S || p.peer === S.peer) return '';
     const c = S.pcs.get(p.peer);
-    const st = c && c.state === 'open' ? ['cb-ok', 'Connected'] : (S.tries.get(p.peer) || { n: 0 }).n >= 5 ? ['cb-bad', 'Can’t connect'] : ['cb-wait', 'Connecting…'];
-    return '<i class="cb-dot ' + st[0] + '" title="' + st[1] + '"></i>' + (c && c.audio ? '<button class="cb-mute" data-m="' + esc(p.peer) + '" title="Mute or unmute this person">' + (c.muted ? 'Muted' : 'Audio') + '</button>' : '');
+    const st =
+      c && c.state === 'open'
+        ? ['cb-ok', 'Connected']
+        : (S.tries.get(p.peer) || { n: 0 }).n >= 5
+          ? ['cb-bad', 'Can’t connect']
+          : ['cb-wait', 'Connecting…'];
+    return (
+      '<i class="cb-dot ' +
+      st[0] +
+      '" title="' +
+      st[1] +
+      '"></i>' +
+      (c && c.audio
+        ? '<button class="cb-mute" data-m="' +
+          esc(p.peer) +
+          '" title="Mute or unmute this person">' +
+          (c.muted ? 'Muted' : 'Audio') +
+          '</button>'
+        : '')
+    );
   }
   function wirePopover() {
     const g = (id) => $('#' + id, pop);
@@ -880,15 +1306,37 @@
         g('cb-copy').textContent = 'Link copied ✓';
         setTimeout(() => g('cb-copy') && (g('cb-copy').textContent = 'Copy link'), 1800);
       };
-    if (g('cb-em'))
-      g('cb-em').onkeydown = (e) => {
-        if (e.key !== 'Enter') return;
-        const v = e.target.value.trim();
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)) return toast('Enter a valid email address.', 'warn');
-        const body = 'I shared a LogicLab circuit with you (' + (accessOf(share) === 'edit' ? 'you can edit it' : 'view only') + '):\n' + linkOf(share);
-        location.href = 'mailto:' + encodeURIComponent(v) + '?subject=' + encodeURIComponent('LogicLab project: ' + host.doc().name) + '&body=' + encodeURIComponent(body);
-        e.target.value = '';
+    if (g('cb-add-invite')) g('cb-add-invite').onclick = addInvite;
+    if (g('cb-em')) g('cb-em').onkeydown = (e) => e.key === 'Enter' && (e.preventDefault(), addInvite());
+    pop.querySelectorAll('[data-remove]').forEach((b) => (b.onclick = () => removeInvite(b.dataset.remove)));
+    pop.querySelectorAll('[data-mail]').forEach(
+      (b) =>
+        (b.onclick = () => {
+          const email = b.dataset.mail;
+          const body =
+            'You have been invited to collaborate on a LogicLab project. Sign in or sign up using ' +
+            email +
+            ', then open this invitation:\n' +
+            location.origin +
+            '/#invite=' +
+            share.id;
+          location.href =
+            'mailto:' +
+            encodeURIComponent(email) +
+            '?subject=' +
+            encodeURIComponent('LogicLab project invitation') +
+            '&body=' +
+            encodeURIComponent(body);
+        })
+    );
+    if (g('cb-save-pw'))
+      g('cb-save-pw').onclick = () => {
+        const value = ($('#cb-link-pw', pop) || {}).value || '';
+        if (!/^[\s\S]{8,128}$/.test(value))
+          return toast('Use a password between 8 and 128 characters.', 'warn');
+        protectLink(value);
       };
+    if (g('cb-clear-pw')) g('cb-clear-pw').onclick = () => protectLink('');
     if (g('cb-r-chat')) g('cb-r-chat').onclick = () => (togglePopover(false), toggleChat(true));
     if (g('cb-r-mic')) g('cb-r-mic').onclick = toggleMic;
     if (g('cb-r-hist')) g('cb-r-hist').onclick = () => (togglePopover(false), openHistory());
@@ -922,13 +1370,31 @@
     chatBox.hidden = !(S && ui.chat);
     if (chatBox.hidden) return;
     const log = S.chat
-      .map((m) => '<div class="cb-msg' + (m.me ? ' cb-me' : '') + '"><span class="cb-who" style="color:' + COLORS[((S.roster.get(m.from) || { slot: S.slot }).slot || 0) % COLORS.length] + '">' + (m.me ? 'You' : esc(m.name)) + '</span><span class="cb-body">' + esc(m.text) + '</span></div>')
+      .map(
+        (m) =>
+          '<div class="cb-msg' +
+          (m.me ? ' cb-me' : '') +
+          '"><span class="cb-who" style="color:' +
+          COLORS[((S.roster.get(m.from) || { slot: S.slot }).slot || 0) % COLORS.length] +
+          '">' +
+          (m.me ? 'You' : esc(m.name)) +
+          '</span><span class="cb-body">' +
+          esc(m.text) +
+          '</span></div>'
+      )
       .join('');
     const keep = $('#cb-ci', chatBox) ? $('#cb-ci', chatBox).value : '';
     chatBox.innerHTML =
-      '<div class="cb-hd"><b>Chat</b><span class="cb-mu">' + everyone().length + ' here</span><button class="cb-x" id="cb-cx" aria-label="Close chat">×</button></div>' +
-      '<div class="cb-log" id="cb-log">' + (log || '<div class="cb-mu cb-empty">Messages go straight to the people in this session. They are not stored.</div>') + '</div>' +
-      '<form class="cb-form" id="cb-cf"><input id="cb-ci" maxlength="600" placeholder="Message everyone…" autocomplete="off" /><button class="cb-send" aria-label="Send">' + ICON.send + '</button></form>';
+      '<div class="cb-hd"><b>Chat</b><span class="cb-mu">' +
+      everyone().length +
+      ' here</span><button class="cb-x" id="cb-cx" aria-label="Close chat">×</button></div>' +
+      '<div class="cb-log" id="cb-log">' +
+      (log ||
+        '<div class="cb-mu cb-empty">Messages go straight to the people in this session. They are not stored.</div>') +
+      '</div>' +
+      '<form class="cb-form" id="cb-cf"><input id="cb-ci" maxlength="600" placeholder="Message everyone…" autocomplete="off" /><button class="cb-send" aria-label="Send">' +
+      ICON.send +
+      '</button></form>';
     const l = $('#cb-log', chatBox);
     l.scrollTop = l.scrollHeight;
     const inp = $('#cb-ci', chatBox);
@@ -950,12 +1416,17 @@
   /* ---------------------------------------------------------------- start-up */
   window.LogicLabCollab = { session: () => S, leave, openHistory, accessOf, _flush: flushLocalNow };
   const j = parseJoin();
+  const invite = parseInvite();
   if (j) {
     if (!window.RTCPeerConnection) toast('This browser cannot join live sessions.', 'error');
     else setTimeout(() => joinDialog(j), 250);
+  } else if (invite) {
+    setTimeout(() => openInvitation(invite), 250);
   }
   addEventListener('hashchange', () => {
     const x = parseJoin();
     if (x && !S) joinDialog(x);
+    const i = parseInvite();
+    if (i && !S) openInvitation(i);
   });
 })();

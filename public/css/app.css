@@ -1247,6 +1247,63 @@ footer {
 .al[hidden] {
   display: none;
 }
+#mauth .mc {
+  border: 1px solid color-mix(in srgb, var(--ac) 20%, var(--bd));
+  background:
+    radial-gradient(ellipse at 50% -18%, color-mix(in srgb, var(--ac) 16%, transparent), transparent 58%),
+    var(--pn);
+  gap: 14px;
+}
+#mauth .mc .lgo {
+  margin: 8px 0 2px;
+}
+#mauth .mc h2 {
+  font-size: clamp(24px, 5vw, 29px);
+  letter-spacing: -0.035em;
+}
+#mauth .mc > p {
+  max-width: 330px;
+  margin: 0 auto 4px;
+  line-height: 1.55;
+}
+#au input[type='email'],
+#au input[type='password'],
+#au input[type='text'] {
+  min-height: 48px;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 88%, var(--pn));
+  color: var(--tx);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+#au input:focus {
+  outline: none;
+  border-color: var(--ac);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 18%, transparent);
+  background: var(--pn);
+}
+#au #asb {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 2px;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--ac) 23%, transparent);
+}
+#mauth .alt {
+  padding-top: 2px;
+}
+#aoff.big {
+  min-height: 42px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--mu);
+}
+#aoff.big:hover {
+  border-color: var(--bd);
+  color: var(--tx);
+}
 .big {
   padding: 12px 22px;
   font-size: 15px;
@@ -2179,7 +2236,9 @@ body:has(.rzh.drag) {
   height: 30px;
   border-radius: 50%;
   color: #fff;
-  font: 600 11px system-ui, sans-serif;
+  font:
+    600 11px system-ui,
+    sans-serif;
   border: 2px solid var(--pn);
   flex: none;
   transition: box-shadow 0.15s;
@@ -2196,7 +2255,9 @@ body:has(.rzh.drag) {
   box-shadow: 0 0 0 3px #22c55e;
 }
 .cb-pill {
-  font: 600 11px system-ui, sans-serif;
+  font:
+    600 11px system-ui,
+    sans-serif;
   padding: 4px 9px;
   border-radius: 99px;
   background: var(--bg);
@@ -2228,7 +2289,9 @@ body:has(.rzh.drag) {
   border-radius: 9px;
   background: #ef4444;
   color: #fff;
-  font: 700 10px/17px system-ui, sans-serif;
+  font:
+    700 10px/17px system-ui,
+    sans-serif;
   text-align: center;
   font-style: normal;
 }
@@ -2264,7 +2327,9 @@ body:has(.rzh.drag) {
 .cb-lbl {
   display: block;
   margin: 14px 0 6px;
-  font: 600 13px system-ui, sans-serif;
+  font:
+    600 13px system-ui,
+    sans-serif;
 }
 .cb-mu {
   color: var(--mu);
@@ -2278,6 +2343,88 @@ body:has(.rzh.drag) {
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
+.cb-invite-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.cb-invite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 74%, var(--pn));
+}
+.cb-invite-mail {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cb-invite-mail small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 400;
+}
+.cb-invite-mailbtn,
+.cb-invite-remove {
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--ac);
+  font:
+    600 12px system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+.cb-invite-remove {
+  color: var(--mu);
+  font-size: 18px;
+  line-height: 1;
+}
+.cb-invite-mailbtn:hover,
+.cb-invite-remove:hover {
+  background: var(--pn);
+}
+.cb-inv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+.cb-inv select {
+  min-width: 95px;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 0 7px;
+  background: var(--bg);
+  color: var(--tx);
+  font:
+    12px system-ui,
+    sans-serif;
+}
+.cb-inv .cb-btn {
+  padding: 0 11px;
+}
+.cb-password {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+.cb-password .cb-btn {
+  padding: 0 10px;
+  font-size: 12px;
+}
+.cb-clear-pw {
+  color: #dc2626;
+}
 .cb-inv input,
 #cb-pop input,
 .cb-card input {
@@ -2289,7 +2436,12 @@ body:has(.rzh.drag) {
   border-radius: 8px;
   background: var(--bg);
   color: var(--tx);
-  font: 14px system-ui, sans-serif;
+  font:
+    14px system-ui,
+    sans-serif;
+}
+.cb-inv input {
+  cursor: text;
 }
 #cb-pop input:focus,
 .cb-card input:focus,
@@ -2308,7 +2460,9 @@ body:has(.rzh.drag) {
   border-radius: 8px;
   background: var(--bg);
   color: var(--tx);
-  font: 600 14px system-ui, sans-serif;
+  font:
+    600 14px system-ui,
+    sans-serif;
   text-align: left;
 }
 .cb-sel > span:nth-child(2) {
@@ -2370,7 +2524,9 @@ body:has(.rzh.drag) {
   border-radius: 8px;
   background: var(--bg);
   color: var(--tx);
-  font: 600 14px system-ui, sans-serif;
+  font:
+    600 14px system-ui,
+    sans-serif;
   cursor: pointer;
 }
 .cb-btn:hover {
@@ -2425,7 +2581,9 @@ body:has(.rzh.drag) {
   border-radius: 8px;
   background: none;
   color: var(--tx);
-  font: 14px system-ui, sans-serif;
+  font:
+    14px system-ui,
+    sans-serif;
   text-align: left;
 }
 .cb-rw:hover {
@@ -2627,7 +2785,9 @@ body:has(.rzh.drag) {
   align-items: flex-end;
 }
 .cb-who {
-  font: 600 11px system-ui, sans-serif;
+  font:
+    600 11px system-ui,
+    sans-serif;
   margin-bottom: 2px;
 }
 .cb-body {
@@ -2656,7 +2816,9 @@ body:has(.rzh.drag) {
   border-radius: 20px;
   background: var(--bg);
   color: var(--tx);
-  font: 14px system-ui, sans-serif;
+  font:
+    14px system-ui,
+    sans-serif;
 }
 .cb-send {
   width: 40px;
@@ -2696,7 +2858,9 @@ body:has(.rzh.drag) {
   background: var(--c);
   color: #fff;
   white-space: nowrap;
-  font: 600 11px system-ui, sans-serif;
+  font:
+    600 11px system-ui,
+    sans-serif;
 }
 body.ro #pal,
 body.ro #dt,

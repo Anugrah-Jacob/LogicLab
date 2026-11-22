@@ -2,12 +2,12 @@
 
 ## What people see
 
-- **Share** button in the header (next to your avatar). It opens a box like Canva's: *People with access*, an email
-  invite, and **Collaboration link** with three choices:
+- **Share** button in the header (next to your avatar). It opens a box like Canva's: *People with access*, email
+  invitations, and **Collaboration link** with three choices:
   - **Only you can access** (default; nobody can open it)
   - **Anyone with the link can view**: they see the circuit, run it, press switches and push buttons on their own screen. They cannot change it.
   - **Anyone with the link can edit**: they change the circuit together with you, live.
-  Neither needs an account. **Copy link** copies it. *More → Reset link* makes a new link (the old one stops working and people are disconnected); *Stop sharing* removes it.
+  Link access is open by default; adding a password makes sign-in and the password required. Email invitations are private to the invited account email: invitees sign in or create an account with that same email. The Share panel lists invited emails and can revoke them; **Email** opens the local mail app with the invitation link. **Copy link** copies a collaboration link. *More → Reset link* makes a new link (the old one stops working and people are disconnected); *Stop sharing* removes links and invitations.
 - While a session is live a small bar floats at the top of the canvas: who is here (avatars, a green ring while someone talks), 🎙 microphone, 💬 chat. People's cursors are shown with their name.
 - **Version history** (also in the Share box): versions are saved automatically (at most every 5-10 minutes while there are changes) and you can save a named one. Restoring keeps the current circuit in history first and can be undone with Ctrl+Z. Last 50 versions are kept.
 - **Push button** (palette → Inputs & Outputs): a separate part. Output is 1 only while it is held down; it is never stuck on. The normal **Switch** and the **power button** work as before.
@@ -57,7 +57,7 @@ Set either `ICE_SERVERS` (a JSON list, for example from your TURN provider) or, 
 ## Updating an existing site
 
 ```bash
-npx wrangler d1 migrations apply logiclab --remote   # adds migrations/0003_collab.sql
+npx wrangler d1 migrations apply logiclab --remote   # applies any pending collaboration migrations
 SITE_URL=https://your-domain.com npm run build
 npx wrangler pages deploy public --project-name logiclab
 ```
