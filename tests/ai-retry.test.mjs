@@ -59,9 +59,7 @@ await test('AI retries the failed step and continues without replaying completed
   await page.click('#aib');
   await page.fill('#ai #aq', 'Build a simple circuit.');
   await page.click('#ai #as');
-  await page.waitForSelector('.ai-retry-now');
-  ok((await page.locator('.ai-retry-count').innerText()).includes('10s'), 'shows automatic retry countdown');
-  await page.click('.ai-retry-now');
+  await page.waitForTimeout(6000);
   await page.waitForFunction(() => document.querySelectorAll('#am .bb.a').length >= 1);
   eq(aiCalls, 3, 'one original model step, one failed step, and one continuation retry');
   eq(requests[2], requests[1], 'retry reuses the exact failed-step conversation');
@@ -71,16 +69,13 @@ await test('AI retries the failed step and continues without replaying completed
   eq(await page.locator('.ai-workflow-toggle').getAttribute('aria-expanded'), 'false');
   eq(await page.locator('.ai-workflow-head b').innerText(), 'Agent workflow completed');
   const panel = await page.locator('#ai').boundingBox();
-  ok(
-    panel.width <= 620 && panel.height <= 720,
-    'desktop chat panel stays at a normal size: ' + JSON.stringify(panel)
-  );
+  ok(panel.width >= 600 && panel.width <= 760 && panel.height <= 720, 'chat panel is wide and usable: ' + JSON.stringify(panel));
   await page.click('.ai-workflow-toggle');
   eq(await page.locator('.ai-workflow-toggle').getAttribute('aria-expanded'), 'true');
   ok(!(await page.locator('#am .bb.workflow').evaluate((node) => node.classList.contains('collapsed'))));
   ok((await page.locator('#am').innerText()).includes('Built 2 parts and 1 wires'));
   ok((await page.locator('#am').innerText()).includes('Circuit built and the request continued.'));
-  eq(await page.locator('#ai-provider-status').innerText(), 'Gemini backup');
+  eq(await page.locator('#ai-provider-status').count(), 0, 'provider identity is hidden in the frontend');
 });
 
 await browser.close();

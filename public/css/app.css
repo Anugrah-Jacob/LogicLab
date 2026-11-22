@@ -1532,7 +1532,7 @@ footer {
   position: fixed;
   right: 16px;
   bottom: 12px;
-  width: min(600px, calc(100vw - 32px));
+  width: min(52vw, 760px);
   max-width: none;
   height: min(680px, calc(100dvh - 40px));
   z-index: 90;

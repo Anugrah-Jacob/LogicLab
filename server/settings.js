@@ -14,8 +14,8 @@ export const PROVIDERS = {
     label: 'OpenAI',
     kind: 'openai',
     base: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
-    models: ['gpt-4o-mini', 'gpt-4o']
+    model: 'gpt-oss-120b',
+    models: ['gpt-oss-120b']
   },
   groq: {
     label: 'Groq',
@@ -28,8 +28,8 @@ export const PROVIDERS = {
     label: 'Google Gemini',
     kind: 'openai',
     base: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    model: 'gemini-2.5-flash',
-    models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+    model: 'gemini-3.5-flash-lite',
+    models: ['gemini-3.5-flash-lite']
   },
   openrouter: {
     label: 'OpenRouter',
@@ -58,7 +58,7 @@ export const PROVIDERS = {
 export async function loadSettings(env) {
   const rows = await env.DB.prepare('SELECT k, v FROM settings').all();
   const raw = Object.fromEntries(rows.results.map((r) => [r.k, r.v]));
-  const defaultProvider = PROVIDERS[env.AI_PROVIDER] ? env.AI_PROVIDER : 'groq';
+  const defaultProvider = PROVIDERS[env.AI_PROVIDER] ? env.AI_PROVIDER : 'openai';
   const provider = PROVIDERS[raw.ai_provider] ? raw.ai_provider : defaultProvider;
   const fallbackProvider = Object.hasOwn(raw, 'ai_fallback_provider')
     ? PROVIDERS[raw.ai_fallback_provider] &&
@@ -66,13 +66,13 @@ export async function loadSettings(env) {
       raw.ai_fallback_provider !== 'nvidia'
       ? raw.ai_fallback_provider
       : ''
-    : provider === 'groq'
+    : provider === 'openai'
       ? 'gemini'
       : '';
   return {
     provider,
     fallbackProvider,
-    thirdProvider: 'nvidia',
+    thirdProvider: '',
     model: raw.ai_model || (provider === 'anthropic' && env.AI_MODEL) || PROVIDERS[provider].model,
     baseUrl: raw.ai_base_url || '',
     keyBlob: raw.ai_key || '',

@@ -4063,6 +4063,7 @@
   $('#nw').onclick = $('#wn').onclick = () => newProj();
   $('#op').onclick = $('#wo').onclick = () => $('#fi').click();
   $('#hm').onclick = showWelcome;
+  $('#hm2').onclick = showWelcome;
   $('#undo').onclick = undo;
   $('#redo').onclick = redo;
   $('#fi').onchange = (e) => {
@@ -5513,15 +5514,20 @@
     return m.slice(i);
   }
   const DOTS = '<span class="dots"><i></i><i></i><i></i></span>';
-  const AI_RETRY_DELAYS = [10, 20, 30];
-  const aiWait = (node, seconds, message) =>
+  const AI_RETRY_DELAYS = [5, 5];
+  const aiWait = (node, seconds, visible = true) =>
     new Promise((resolve) => {
+      if (!visible) {
+        const timer = setTimeout(resolve, seconds * 1000);
+        node.className = 'bb a ai-working';
+        node.innerHTML = DOTS;
+        node._hiddenRetryTimer = timer;
+        return;
+      }
       let remaining = seconds;
       node.className = 'bb a ai-retrying';
       node.innerHTML =
-        '<span class="ai-retry-message">' +
-        esc(message) +
-        '</span><span class="ai-retry-count">Automatic retry in ' +
+        '<span class="ai-retry-message">Still working…</span><span class="ai-retry-count">Retrying automatically in ' +
         remaining +
         's</span><button type="button" class="ai-retry-now">Retry now</button>';
       const count = node.querySelector('.ai-retry-count');
@@ -5536,26 +5542,25 @@
       timer = setInterval(() => {
         remaining--;
         if (remaining <= 0) finish();
-        else count.textContent = 'Automatic retry in ' + remaining + 's';
+        else count.textContent = 'Retrying automatically in ' + remaining + 's';
       }, 1000);
     });
   async function aiRequest(body, node) {
-    let retry = 0;
+    let attempt = 0;
     while (true) {
       try {
         return await api('/ai', { method: 'POST', body });
       } catch (e) {
-        if (e.status && (![429, 502, 503, 504].includes(e.status) || (e.status === 429 && !e.retryAfter)))
-          throw e;
-        if (retry >= AI_RETRY_DELAYS.length) throw e;
-        const delay = Math.max(AI_RETRY_DELAYS[retry], Math.min(120, e.retryAfter || 0));
-        await aiWait(node, delay, e.message || 'The AI service is temporarily unavailable.');
-        retry++;
+        if (e.status && ![429, 502, 503, 504].includes(e.status)) throw e;
+        if (attempt >= 2) throw e;
+        const visible = attempt === 1;
+        await aiWait(node, AI_RETRY_DELAYS[Math.min(attempt, 1)], visible);
+        attempt++;
       }
     }
   }
   function showAIError(error, step, requestBody, workflow) {
-    const message = error.status ? error.message : 'Could not reach the AI service. Check your connection.';
+    const message = 'The AI service is temporarily unavailable. Please try again.';
     const retryable =
       !error.status ||
       [502, 503, 504].includes(error.status) ||
@@ -5663,9 +5668,6 @@
         showAIError(error, i, requestBody, workflow);
         return;
       }
-      if (r.provider)
-        $('#ai-provider-status').textContent =
-          r.provider === 'gemini' ? 'Gemini backup' : r.provider === 'groq' ? 'Groq ready' : 'Ready';
       AI.msgs.push({ role: 'assistant', content: r.content });
       const txt = r.content
         .filter((b) => b.type == 'text')
