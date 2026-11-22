@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BCD to 7-segment decoder: Truth Table, Circuit and Simulator</title>
+<meta name="description" content="A BCD to 7-segment decoder turns a 4-bit binary-coded decimal digit into the seven signals that drive a 7-segment display. Ten AND gates detect digits 0 to…">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://logiclab-8xy.pages.dev/learn/bcd-7seg.html">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="LogicLab">
+<meta property="og:title" content="BCD to 7-segment decoder: Truth Table, Circuit and Simulator">
+<meta property="og:description" content="A BCD to 7-segment decoder turns a 4-bit binary-coded decimal digit into the seven signals that drive a 7-segment display. Ten AND gates detect digits 0 to…">
+<meta property="og:url" content="https://logiclab-8xy.pages.dev/learn/bcd-7seg.html">
+<meta property="og:image" content="https://logiclab-8xy.pages.dev/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">[{"@context":"https://schema.org","@type":"Article","headline":"BCD to 7-segment decoder","description":"A BCD to 7-segment decoder turns a 4-bit binary-coded decimal digit into the seven signals that drive a 7-segment display.","image":"https://logiclab-8xy.pages.dev/thumbs/bcd-7seg.jpg","datePublished":"2026-11-22","dateModified":"2026-11-22","author":{"@type":"Organization","name":"LogicLab"},"publisher":{"@type":"Organization","name":"LogicLab","logo":{"@type":"ImageObject","url":"https://logiclab-8xy.pages.dev/icon-512.png"}},"mainEntityOfPage":"https://logiclab-8xy.pages.dev/learn/bcd-7seg.html"},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"LogicLab","item":"https://logiclab-8xy.pages.dev/"},{"@type":"ListItem","position":2,"name":"Learn","item":"https://logiclab-8xy.pages.dev/learn/"},{"@type":"ListItem","position":3,"name":"BCD to 7-segment decoder"}]}]</script>
+<link rel="stylesheet" href="/css/learn.css?v=f7084c26">
+</head>
+<body>
+<header class="lh"><a class="brand" href="/"><img src="/logo-mark.svg" alt="" width="38" height="33"><b>Logic<span>Lab</span></b></a><nav><a href="/learn/">Learn</a><a class="cta" href="/">Open the simulator</a></nav></header>
+<main><nav class="crumbs" aria-label="Breadcrumb"><a href="/">LogicLab</a> › <a href="/learn/">Learn</a> › BCD to 7-segment decoder</nav>
+<article>
+<h1>BCD to 7-segment decoder</h1>
+<p class="lead">A BCD to 7-segment decoder turns a 4-bit binary-coded decimal digit into the seven signals that drive a 7-segment display.</p>
+<img class="thumb" src="/thumbs/bcd-7seg.jpg" alt="Circuit diagram of the BCD to 7-segment decoder" width="720" height="450" loading="lazy">
+<p><a class="btn" href="/?template=bcd-7seg">Open this circuit in LogicLab →</a></p>
+<aside class="ad-slot" data-ad-slot="learn-top" hidden></aside>
+<h2>Boolean expressions</h2>
+<ul class="exprs"><li class="expr">Segment x = OR of the digits that light it</li></ul>
+<h2>Truth table</h2><div class="scroll"><table><thead><tr><th>D</th><th>C</th><th>B</th><th>A</th><th>seg a</th><th>seg b</th><th>seg c</th><th>seg d</th><th>seg e</th><th>seg f</th><th>seg g</th></tr></thead><tbody><tr><td>0</td><td>0</td><td>0</td><td>0</td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td></tr><tr><td>0</td><td>0</td><td>0</td><td>1</td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>0</td><td>0</td><td>1</td><td>0</td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>1</b></td></tr><tr><td>0</td><td>0</td><td>1</td><td>1</td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>0</b></td><td><b>1</b></td></tr><tr><td>0</td><td>1</td><td>0</td><td>0</td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td></tr><tr><td>0</td><td>1</td><td>0</td><td>1</td><td><b>1</b></td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td></tr><tr><td>0</td><td>1</td><td>1</td><td>0</td><td><b>1</b></td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td></tr><tr><td>0</td><td>1</td><td>1</td><td>1</td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>1</td><td>0</td><td>0</td><td>0</td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td></tr><tr><td>1</td><td>0</td><td>0</td><td>1</td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>1</b></td><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td></tr><tr><td>1</td><td>0</td><td>1</td><td>0</td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>1</td><td>0</td><td>1</td><td>1</td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>1</td><td>1</td><td>0</td><td>0</td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>1</td><td>1</td><td>0</td><td>1</td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>1</td><td>1</td><td>1</td><td>0</td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr><tr><td>1</td><td>1</td><td>1</td><td>1</td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td><td><b>0</b></td></tr></tbody></table></div>
+<h2>How it works</h2>
+<p>Ten AND gates detect digits 0 to 9. Each segment (a to g) is the OR of the digits that need it lit. Inputs 10 to 15 are not valid BCD, so no digit gate fires and the display stays blank.</p>
+<h2>Try it yourself</h2>
+<p>Decodes a 4-bit BCD digit (0 to 9) into the seven segment signals a to g; values 10 to 15 blank the display. Open the circuit, click the switches to change the inputs, and watch the LEDs and the waveform panel respond. You can edit the circuit, convert it to NAND-only or NOR-only gates, and save or export your version.</p>
+<h2>Related circuits</h2><ul class="rel"><li><a href="/learn/mux-4to1.html">4:1 multiplexer</a></li><li><a href="/learn/demux-1to4.html">1:4 demultiplexer</a></li><li><a href="/learn/decoder-2to4.html">2:4 decoder with enable</a></li><li><a href="/learn/encoder-4to2.html">4:2 priority encoder</a></li></ul>
+<p><small>Reference: <a href="https://en.wikipedia.org/wiki/Seven-segment_display" rel="noopener">en.wikipedia.org/wiki/Seven-segment_display</a></small></p>
+<aside class="ad-slot" data-ad-slot="learn-bottom" hidden></aside>
+</article></main>
+<footer>LogicLab: Digital Electronics Suite · free and open source (MIT)</footer>
+<script defer src="/js/config.js?v=f7084c26"></script><script defer src="/js/ads.js?v=f7084c26"></script>
+</body>
+</html>

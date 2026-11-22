@@ -1,0 +1,12 @@
+# The small Worker that keeps LogicLab project data (the circuit JSON) in MongoDB Atlas.
+# It has its own compatibility date: the MongoDB driver needs nodejs_compat and a date of 2025-03-20 or later.
+name = "logiclab-mongo"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set with `npx wrangler secret put NAME`):
+#   MONGODB_URI   your Atlas connection string, e.g. mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/
+#   API_KEY       a long random string; the LogicLab site sends it as MONGO_API_KEY
+[vars]
+DB_NAME = "logiclab"

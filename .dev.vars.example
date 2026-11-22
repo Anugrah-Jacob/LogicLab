@@ -1,0 +1,9 @@
+JWT_SECRET=change-me-to-a-long-random-string-0123456789
+ADMIN_SETUP_CODE=choose-a-one-time-setup-code
+# Optional fallback for the AI. Normally you add the provider and key in the admin panel instead.
+# ANTHROPIC_API_KEY=sk-ant-...
+# Optional: keep project data in MongoDB Atlas through the logiclab-mongo Worker (see docs/COLLABORATION.md).
+# MONGO_API_URL=https://logiclab-mongo.your-name.workers.dev
+# MONGO_API_KEY=the-same-long-random-string-as-API_KEY-in-the-mongo-worker
+# Optional: relay servers for voice/live editing across strict firewalls (STUN is used by default).
+# ICE_SERVERS=[{"urls":"stun:stun.l.google.com:19302"}]

@@ -1,0 +1,24 @@
+{
+  "name": "logiclab",
+  "version": "1.0.0",
+  "description": "LogicLab: a free, open-source digital electronics suite (logic circuit simulator) that runs in the browser.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler d1 migrations apply logiclab --local && wrangler pages dev public",
+    "build": "node scripts/build.mjs",
+    "assets": "node scripts/build-assets.mjs",
+    "format": "prettier --write .",
+    "check": "prettier --check . && node scripts/check-syntax.mjs",
+    "test": "node tests/engine.test.mjs && node tests/ui.test.mjs && node tests/pushbutton.test.mjs",
+    "test:collab": "node --no-warnings tests/collab.test.mjs",
+    "test:cloud": "node tests/cloud.test.mjs",
+    "test:admin": "node tests/admin.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0",
+    "prettier": "^3.3.0",
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3-bit ripple counter: Truth Table, Circuit and Simulator</title>
+<meta name="description" content="A ripple counter is an asynchronous binary counter made from a chain of toggle flip-flops. Each flip-flop has T tied to 1, so it toggles whenever its clock…">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://logiclab-8xy.pages.dev/learn/ripple-counter-3bit.html">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="LogicLab">
+<meta property="og:title" content="3-bit ripple counter: Truth Table, Circuit and Simulator">
+<meta property="og:description" content="A ripple counter is an asynchronous binary counter made from a chain of toggle flip-flops. Each flip-flop has T tied to 1, so it toggles whenever its clock…">
+<meta property="og:url" content="https://logiclab-8xy.pages.dev/learn/ripple-counter-3bit.html">
+<meta property="og:image" content="https://logiclab-8xy.pages.dev/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">[{"@context":"https://schema.org","@type":"Article","headline":"3-bit ripple counter","description":"A ripple counter is an asynchronous binary counter made from a chain of toggle flip-flops.","image":"https://logiclab-8xy.pages.dev/thumbs/ripple-counter-3bit.jpg","datePublished":"2026-11-22","dateModified":"2026-11-22","author":{"@type":"Organization","name":"LogicLab"},"publisher":{"@type":"Organization","name":"LogicLab","logo":{"@type":"ImageObject","url":"https://logiclab-8xy.pages.dev/icon-512.png"}},"mainEntityOfPage":"https://logiclab-8xy.pages.dev/learn/ripple-counter-3bit.html"},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"LogicLab","item":"https://logiclab-8xy.pages.dev/"},{"@type":"ListItem","position":2,"name":"Learn","item":"https://logiclab-8xy.pages.dev/learn/"},{"@type":"ListItem","position":3,"name":"3-bit ripple counter"}]}]</script>
+<link rel="stylesheet" href="/css/learn.css?v=f7084c26">
+</head>
+<body>
+<header class="lh"><a class="brand" href="/"><img src="/logo-mark.svg" alt="" width="38" height="33"><b>Logic<span>Lab</span></b></a><nav><a href="/learn/">Learn</a><a class="cta" href="/">Open the simulator</a></nav></header>
+<main><nav class="crumbs" aria-label="Breadcrumb"><a href="/">LogicLab</a> › <a href="/learn/">Learn</a> › 3-bit ripple counter</nav>
+<article>
+<h1>3-bit ripple counter</h1>
+<p class="lead">A ripple counter is an asynchronous binary counter made from a chain of toggle flip-flops.</p>
+<img class="thumb" src="/thumbs/ripple-counter-3bit.jpg" alt="Circuit diagram of the 3-bit ripple counter" width="720" height="450" loading="lazy">
+<p><a class="btn" href="/?template=ripple-counter-3bit">Open this circuit in LogicLab →</a></p>
+<aside class="ad-slot" data-ad-slot="learn-top" hidden></aside>
+<h2>Boolean expressions</h2>
+<ul class="exprs"><li class="expr">Q0 toggles every clock</li><li class="expr">Q1 toggles when Q0 falls</li><li class="expr">Q2 toggles when Q1 falls</li></ul>
+
+<h2>How it works</h2>
+<p>Each flip-flop has T tied to 1, so it toggles whenever its clock input falls. The first stage is clocked by the input clock and every later stage by the output of the stage before it, which halves the frequency at each step. The count therefore runs 0 to 7 and wraps around.</p>
+<h2>Try it yourself</h2>
+<p>Three toggle flip-flops, each clocked by the falling edge of the previous stage, count 0 to 7. Open the circuit, click the switches to change the inputs, and watch the LEDs and the waveform panel respond. You can edit the circuit, convert it to NAND-only or NOR-only gates, and save or export your version.</p>
+<h2>Related circuits</h2><ul class="rel"><li><a href="/learn/shift-siso.html">SISO shift register</a></li></ul>
+<p><small>Reference: <a href="https://en.wikipedia.org/wiki/Counter_(digital)#Asynchronous_(ripple)_counter" rel="noopener">en.wikipedia.org/wiki/Counter_(digital)#Asynchronous_(ripple)_counter</a></small></p>
+<aside class="ad-slot" data-ad-slot="learn-bottom" hidden></aside>
+</article></main>
+<footer>LogicLab: Digital Electronics Suite · free and open source (MIT)</footer>
+<script defer src="/js/config.js?v=f7084c26"></script><script defer src="/js/ads.js?v=f7084c26"></script>
+</body>
+</html>

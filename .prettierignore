@@ -1,0 +1,8 @@
+node_modules
+.wrangler
+public/learn
+public/thumbs
+public/sitemap.xml
+public/robots.txt
+public/llms.txt
+*.md

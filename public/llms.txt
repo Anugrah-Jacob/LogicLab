@@ -1,0 +1,26 @@
+# LogicLab
+
+> LogicLab is a free, open-source digital electronics suite that runs in the browser: a logic circuit simulator with truth tables, waveforms, flip-flops, counters, schematic, transistor, breadboard and PCB views. It works offline.
+
+## Guides
+
+- [Basic logic gates](https://logiclab-8xy.pages.dev/learn/basic-gates.html): Logic gates are the building blocks of digital circuits: each one turns one or two input bits into one output bit.
+- [Half adder](https://logiclab-8xy.pages.dev/learn/half-adder.html): A half adder is a combinational circuit that adds two single bits and produces a sum bit and a carry bit.
+- [Full adder](https://logiclab-8xy.pages.dev/learn/full-adder.html): A full adder adds three bits (A, B and a carry-in) and outputs a sum bit and a carry-out.
+- [4-bit ripple-carry adder](https://logiclab-8xy.pages.dev/learn/adder-4bit.html): A ripple-carry adder adds two multi-bit binary numbers by chaining one full adder per bit.
+- [1-bit comparator](https://logiclab-8xy.pages.dev/learn/comparator-1bit.html): A digital comparator tells you whether one binary number is less than, equal to, or greater than another.
+- [4:1 multiplexer](https://logiclab-8xy.pages.dev/learn/mux-4to1.html): A 4:1 multiplexer routes one of four input bits to a single output, chosen by two select bits.
+- [1:4 demultiplexer](https://logiclab-8xy.pages.dev/learn/demux-1to4.html): A 1:4 demultiplexer takes one input bit and routes it to one of four outputs, chosen by two select bits.
+- [2:4 decoder with enable](https://logiclab-8xy.pages.dev/learn/decoder-2to4.html): A 2-to-4 decoder converts a 2-bit binary input into a one-hot output: exactly one of four lines is 1.
+- [4:2 priority encoder](https://logiclab-8xy.pages.dev/learn/encoder-4to2.html): A priority encoder converts the position of the highest active input line into a binary number.
+- [BCD to 7-segment decoder](https://logiclab-8xy.pages.dev/learn/bcd-7seg.html): A BCD to 7-segment decoder turns a 4-bit binary-coded decimal digit into the seven signals that drive a 7-segment display.
+- [SR latch (NOR)](https://logiclab-8xy.pages.dev/learn/sr-latch-nor.html): An SR latch is the simplest memory circuit: two cross-coupled gates that store one bit.
+- [Gated D latch](https://logiclab-8xy.pages.dev/learn/d-latch.html): A gated D latch stores one bit: while its enable input is high the output follows the data input, and when enable goes low the last value is held.
+- [Master-slave D flip-flop](https://logiclab-8xy.pages.dev/learn/d-flipflop-master-slave.html): A master-slave D flip-flop is an edge-triggered memory element built from two gated D latches.
+- [Master-slave JK flip-flop](https://logiclab-8xy.pages.dev/learn/jk-flipflop-master-slave.html): A JK flip-flop is a clocked memory element that can hold, set, reset or toggle its output.
+- [3-bit ripple counter](https://logiclab-8xy.pages.dev/learn/ripple-counter-3bit.html): A ripple counter is an asynchronous binary counter made from a chain of toggle flip-flops.
+- [SISO shift register](https://logiclab-8xy.pages.dev/learn/shift-siso.html): A shift register is a chain of flip-flops that moves a stored bit pattern one position on every clock pulse.
+
+## App
+
+- [Open the simulator](https://logiclab-8xy.pages.dev/)

@@ -1,0 +1,21 @@
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(self), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache
+/admin/*
+  Cache-Control: no-cache
+  X-Robots-Tag: noindex, nofollow
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/css/*
+  Cache-Control: public, max-age=31536000, immutable
+/thumbs/*
+  Cache-Control: public, max-age=604800
+/learn/*
+  Cache-Control: public, max-age=3600

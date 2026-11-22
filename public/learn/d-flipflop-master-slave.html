@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master-slave D flip-flop: Truth Table, Circuit and Simulator</title>
+<meta name="description" content="A master-slave D flip-flop is an edge-triggered memory element built from two gated D latches. The master latch is transparent while the clock is low and the…">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="canonical" href="https://logiclab-8xy.pages.dev/learn/d-flipflop-master-slave.html">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="LogicLab">
+<meta property="og:title" content="Master-slave D flip-flop: Truth Table, Circuit and Simulator">
+<meta property="og:description" content="A master-slave D flip-flop is an edge-triggered memory element built from two gated D latches. The master latch is transparent while the clock is low and the…">
+<meta property="og:url" content="https://logiclab-8xy.pages.dev/learn/d-flipflop-master-slave.html">
+<meta property="og:image" content="https://logiclab-8xy.pages.dev/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">[{"@context":"https://schema.org","@type":"Article","headline":"Master-slave D flip-flop","description":"A master-slave D flip-flop is an edge-triggered memory element built from two gated D latches.","image":"https://logiclab-8xy.pages.dev/thumbs/d-flipflop-master-slave.jpg","datePublished":"2026-11-22","dateModified":"2026-11-22","author":{"@type":"Organization","name":"LogicLab"},"publisher":{"@type":"Organization","name":"LogicLab","logo":{"@type":"ImageObject","url":"https://logiclab-8xy.pages.dev/icon-512.png"}},"mainEntityOfPage":"https://logiclab-8xy.pages.dev/learn/d-flipflop-master-slave.html"},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"LogicLab","item":"https://logiclab-8xy.pages.dev/"},{"@type":"ListItem","position":2,"name":"Learn","item":"https://logiclab-8xy.pages.dev/learn/"},{"@type":"ListItem","position":3,"name":"Master-slave D flip-flop"}]}]</script>
+<link rel="stylesheet" href="/css/learn.css?v=f7084c26">
+</head>
+<body>
+<header class="lh"><a class="brand" href="/"><img src="/logo-mark.svg" alt="" width="38" height="33"><b>Logic<span>Lab</span></b></a><nav><a href="/learn/">Learn</a><a class="cta" href="/">Open the simulator</a></nav></header>
+<main><nav class="crumbs" aria-label="Breadcrumb"><a href="/">LogicLab</a> › <a href="/learn/">Learn</a> › Master-slave D flip-flop</nav>
+<article>
+<h1>Master-slave D flip-flop</h1>
+<p class="lead">A master-slave D flip-flop is an edge-triggered memory element built from two gated D latches.</p>
+<img class="thumb" src="/thumbs/d-flipflop-master-slave.jpg" alt="Circuit diagram of the Master-slave D flip-flop" width="720" height="450" loading="lazy">
+<p><a class="btn" href="/?template=d-flipflop-master-slave">Open this circuit in LogicLab →</a></p>
+<aside class="ad-slot" data-ad-slot="learn-top" hidden></aside>
+<h2>Boolean expressions</h2>
+<ul class="exprs"><li class="expr">Q⁺ = D at the rising edge of CLK</li></ul>
+
+<h2>How it works</h2>
+<p>The master latch is transparent while the clock is low and the slave latch is transparent while the clock is high. At the rising edge the master freezes and the slave copies it, so Q changes once per clock cycle and later changes on D are ignored until the next edge.</p>
+<h2>Try it yourself</h2>
+<p>Two gated D latches with opposite enables copy D to Q on the rising clock edge only. Open the circuit, click the switches to change the inputs, and watch the LEDs and the waveform panel respond. You can edit the circuit, convert it to NAND-only or NOR-only gates, and save or export your version.</p>
+<h2>Related circuits</h2><ul class="rel"><li><a href="/learn/sr-latch-nor.html">SR latch (NOR)</a></li><li><a href="/learn/d-latch.html">Gated D latch</a></li><li><a href="/learn/jk-flipflop-master-slave.html">Master-slave JK flip-flop</a></li></ul>
+<p><small>Reference: <a href="https://en.wikipedia.org/wiki/Flip-flop_(electronics)#Master%E2%80%93slave_edge-triggered_D_flip-flop" rel="noopener">en.wikipedia.org/wiki/Flip-flop_(electronics)#Master%E2%80%93slave_edge-triggered_D_flip-flop</a></small></p>
+<aside class="ad-slot" data-ad-slot="learn-bottom" hidden></aside>
+</article></main>
+<footer>LogicLab: Digital Electronics Suite · free and open source (MIT)</footer>
+<script defer src="/js/config.js?v=f7084c26"></script><script defer src="/js/ads.js?v=f7084c26"></script>
+</body>
+</html>

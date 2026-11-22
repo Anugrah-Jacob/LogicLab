@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>LogicLab – Free Online Logic Circuit Simulator</title>
+    <meta
+      name="description"
+      content="Build and simulate digital logic circuits in your browser: gates, flip-flops, counters, truth tables, waveforms and PCB views. Free, open source and works offline."
+    />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <link rel="canonical" href="https://logiclab-8xy.pages.dev/" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="application-name" content="LogicLab" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="LogicLab" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="icon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LogicLab" />
+    <meta property="og:title" content="LogicLab – Free Online Logic Circuit Simulator" />
+    <meta
+      property="og:description"
+      content="Build and simulate digital logic circuits in your browser: gates, flip-flops, counters, truth tables, waveforms and PCB views. Free, open source and works offline."
+    />
+    <meta property="og:url" content="https://logiclab-8xy.pages.dev/" />
+    <meta property="og:image" content="https://logiclab-8xy.pages.dev/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="LogicLab logo: Digital Electronics Suite" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LogicLab – Free Online Logic Circuit Simulator" />
+    <meta
+      name="twitter:description"
+      content="Build and simulate digital logic circuits in your browser: gates, flip-flops, counters, truth tables, waveforms and PCB views. Free, open source and works offline."
+    />
+    <meta name="twitter:image" content="https://logiclab-8xy.pages.dev/og-image.png" />
+    <script type="application/ld+json">
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "LogicLab",
+          "alternateName": "LogicLab Digital Electronics Suite",
+          "url": "https://logiclab-8xy.pages.dev/",
+          "description": "Free online logic circuit simulator and digital electronics lab with schematic, transistor, breadboard and PCB views.",
+          "applicationCategory": "EducationalApplication",
+          "operatingSystem": "Any (web browser)",
+          "browserRequirements": "Requires JavaScript",
+          "image": "https://logiclab-8xy.pages.dev/og-image.png",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+          "featureList": [
+            "Logic gate and flip-flop simulation",
+            "Truth tables, Boolean equations and K-maps",
+            "Waveform viewer",
+            "Works offline",
+            "Export to PNG and PDF"
+          ]
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is LogicLab?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "LogicLab is a free digital electronics suite that runs in your browser. You can build logic circuits, simulate them in real time, read truth tables and waveforms, and explore schematic, transistor, breadboard and PCB views."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is LogicLab free to use?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. The editor, examples and simulator are free and open source. An account is only needed if you want to sync projects between devices or use LogicLab AI."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does LogicLab work offline?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. After your first visit the app is cached and projects are saved on your device, so you can keep working without a connection. Signed-in users sync their projects when they are back online."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Which parts and circuits can I simulate?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Switches, clocks, LEDs, voltmeters, AND, OR, NOT, NAND, NOR, XOR and XNOR gates, D, T and JK flip-flops and shift registers, plus ready-made examples such as adders, multiplexers, decoders, latches, counters and shift registers."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I share or export my circuits?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. Save downloads a project file that you can reopen or share, and you can export the circuit as a PNG image or a PDF."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What is LogicLab AI?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "An assistant for signed-in users that explains circuits, answers questions and can build and test circuits on the canvas for you."
+              }
+            }
+          ]
+        }
+      ]
+    </script>
+    <link rel="stylesheet" href="css/app.css?v=f7084c26" />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="llg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#93c5fd" />
+          <stop offset="1" stop-color="#1d4ed8" />
+        </linearGradient>
+      </defs>
+      <symbol id="icon-power" viewBox="0 0 24 24">
+        <path d="M12 2v10M6.3 5.7a9 9 0 1 0 11.4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </symbol>
+      <symbol id="icon-save" viewBox="0 0 24 24">
+        <path d="M4 3h13l4 4v14H3V3h1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path d="M7 3v6h10V4M7 21v-8h10v8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M3 5h7l2 2h9v12H3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-file" viewBox="0 0 24 24">
+        <path d="M6 3h8l5 5v13H6zM14 3v6h5M9 13h7M9 17h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8" />
+        <path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </symbol>
+      <symbol id="icon-book" viewBox="0 0 24 24">
+        <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22zM4 5.5v14A2.5 2.5 0 0 1 6.5 17H20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-pointer" viewBox="0 0 24 24">
+        <path d="M5 3v17l4.8-4.7 3.2 5.2 3-1.8-3.1-5.2L20 13z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-github" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.08c-3.1.68-3.76-1.32-3.76-1.32-.5-1.3-1.24-1.65-1.24-1.65-1.01-.7.08-.69.08-.69 1.12.08 1.71 1.15 1.71 1.15 1 .1.76 2.45 3.71 1.74.1-.72.39-1.21.7-1.49-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.21 1.15-2.99-.11-.28-.5-1.42.11-2.95 0 0 .94-.3 3.05 1.14a10.6 10.6 0 0 1 5.55 0c2.11-1.44 3.05-1.14 3.05-1.14.61 1.53.22 2.67.11 2.95.71.78 1.15 1.77 1.15 2.99 0 4.29-2.62 5.23-5.11 5.51.4.35.75 1.03.75 2.08v3.27c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"
+        />
+      </symbol>
+      <symbol id="icon-image" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+        <circle cx="8.5" cy="9" r="1.5" fill="currentColor" />
+        <path d="m4 17 5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-theme" viewBox="0 0 24 24">
+        <path d="M12 3a9 9 0 1 0 9 9h-9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        <path d="M14 3.2a9 9 0 0 1 6.8 6.8H14z" fill="currentColor" />
+      </symbol>
+      <symbol id="icon-keyboard" viewBox="0 0 24 24">
+        <rect x="2.5" y="5" width="19" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8" />
+        <path d="M6 9h.01M9 9h.01M12 9h.01M15 9h.01M18 9h.01M6 12h.01M9 12h.01M12 12h.01M15 12h.01M18 12h.01M8 15h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </symbol>
+      <symbol id="ll-mark" viewBox="0 0 116 100">
+        <path d="M36 4H88L81 21H48Q42 21 41 27L36 70Q35 79 43 79H76L69 96H27Q7 96 9 76L17 24Q19 4 36 4Z" fill="url(#llg)" />
+        <g fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M44 32H55Q77 32 90 50Q77 68 55 68H44Q53 50 44 32Z" />
+          <path d="M26 38H48M22 50H51M26 62H48M90 50H104" />
+        </g>
+        <g fill="#fff" stroke="currentColor" stroke-width="2.4">
+          <circle cx="26" cy="38" r="4.2" />
+          <circle cx="22" cy="50" r="4.2" />
+          <circle cx="26" cy="62" r="4.2" />
+          <circle cx="107" cy="50" r="4.8" />
+        </g>
+      </symbol>
+    </svg>
+    <noscript
+      ><p style="padding: 16px; font: 16px system-ui">
+        LogicLab needs JavaScript to run the simulator. You can still read the <a href="learn/">digital electronics guides</a>.
+      </p></noscript
+    >
+    <header>
+      <div class="lgo" id="hm" role="button" title="Home: projects and templates">
+        <svg class="mk" aria-hidden="true"><use href="#ll-mark" /></svg>
+        <div>
+          <b>Logic<span>Lab</span></b
+          ><small>Digital Electronics Suite</small>
+        </div>
+      </div>
+      <div class="pj">
+        <input type="text" id="pn" value="Untitled" maxlength="40" aria-label="Project name" /><span id="ss" class="st">Not saved</span>
+      </div>
+      <div class="seg" id="seg" title="Click two tabs to compare them side by side">
+        <button data-v="sch" class="on">Circuit</button><button data-v="tr">Transistor</button><button data-v="bb">Breadboard</button
+        ><button data-v="pcb">PCB</button>
+      </div>
+      <div class="hr">
+        <button id="undo" title="Undo (Ctrl+Z)">↶</button><button id="redo" title="Redo (Ctrl+Shift+Z)">↷</button
+        ><button id="pwr" class="pw on" title="Main power: switch the whole circuit on or off" aria-label="Power ON"><svg class="ui-icon" aria-hidden="true"><use href="#icon-power" /></svg><span>ON</span></button
+        ><button id="rst" title="Reset: restart the circuit and the waveform from zero">↺ Reset</button
+        ><button id="sim" class="gh" title="Pause or resume the simulation">❚❚ Pause</button><button id="aib" class="gh" title="LogicLab AI">✦ AI</button
+        ><span class="dd"
+          ><button id="sv" class="pr" title="Save or export"><svg class="ui-icon" aria-hidden="true"><use href="#icon-save" /></svg> Save ▾</button>
+          <div id="sm" hidden>
+            <button data-x="proj"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Project file (.gateforge.json)</button><button data-x="png"><svg class="ui-icon" aria-hidden="true"><use href="#icon-image" /></svg> Export PNG image</button
+            ><button data-x="pdf"><svg class="ui-icon" aria-hidden="true"><use href="#icon-file" /></svg> Export PDF</button>
+          </div></span
+        ><span class="dd"
+          ><button id="mo" title="More" aria-label="More">⋮</button>
+          <div id="mm" hidden>
+            <button id="nw">+ New project</button><button id="op"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Open file…</button><button id="rsz">▭ Reset panel sizes</button
+            ><button id="clr">Clear page</button
+            ><button id="cvn" title="Rebuild every gate from NAND gates">⛓ Convert to NAND-only</button
+            ><button id="cvr" title="Rebuild every gate from NOR gates">⛓ Convert to NOR-only</button
+            ><button id="th"><svg class="ui-icon" aria-hidden="true"><use href="#icon-theme" /></svg> Toggle theme</button><button id="hlp"><svg class="ui-icon" aria-hidden="true"><use href="#icon-keyboard" /></svg> Shortcuts &amp; help</button>
+          </div></span
+        ><button id="av" class="avb">Sign in</button>
+      </div>
+    </header>
+    <main data-n="1">
+      <nav id="pal"></nav>
+      <section id="wrk">
+        <div id="osc" hidden></div>
+        <div id="poff" hidden>Power off · every output is 0 V</div>
+        <canvas id="cv" aria-label="Circuit canvas" role="img"></canvas><canvas id="pcb"></canvas>
+        <div class="fl" id="tb">
+          <button id="tsel" class="on" title="Select (drag a box to multi-select)" aria-label="Select"><svg class="ui-icon" aria-hidden="true"><use href="#icon-pointer" /></svg></button
+          ><button id="tpan" title="Pan (drag the canvas)">✥</button><button id="tpal" class="on" title="Show or hide parts">▦</button
+          ><button id="tan" class="on" title="Show or hide analysis">◧</button
+          ><button id="snp" class="on" title="Snap to invisible grid">⌗</button
+          ><button id="tsc" class="on" title="Show or hide waveforms">∿</button>
+        </div>
+        <div class="fl" id="zm">
+          <button id="zf" title="Fit to screen">⤢</button><button id="zi" title="Zoom in">+</button
+          ><button id="zo" title="Zoom out">−</button><span id="zl">100%</span>
+        </div>
+        <div class="fl" id="rn"><button id="stp" title="Advance the simulation by one step">Step</button></div>
+        <div id="cm" hidden></div>
+      </section>
+      <aside id="side">
+        <div class="stabs"><button data-t="c" class="on">Circuit</button><button data-t="a">Analysis</button></div>
+        <div id="tc">
+          <section class="card">
+            <h4>◈ Circuit Details</h4>
+            <div class="kv" id="cd"></div>
+          </section>
+          <section class="card">
+            <h4>▷ Simulation</h4>
+            <label>Speed <input type="range" id="spd" min="2" max="300" value="40" style="width: 90px" /></label
+            ><label
+              >High
+              <select id="vc">
+                <option>3.3</option>
+                <option selected>5</option>
+                <option>12</option></select
+              >V</label
+            ><label
+              >Model
+              <select id="mdl" title="Ideal = perfect 0/1. Real = voltage levels, RC rise/fall and 30%/70% thresholds">
+                <option value="0">Ideal</option>
+                <option value="1">Real voltage</option>
+              </select></label
+            ><label
+              >Examples
+              <select id="pre">
+                <option value="">Examples…</option>
+              </select></label
+            >
+          </section>
+          <section class="card">
+            <h4>✎ Properties</h4>
+            <div id="insp"></div>
+          </section>
+        </div>
+        <div id="ta" hidden>
+          <div id="tabs">
+            <button data-t="tt" class="on">Truth</button><button data-t="eq">Equation</button><button data-t="km">K-map</button
+            ><button data-t="ff">FF tables</button><button data-t="st">State</button>
+          </div>
+          <div id="an"></div>
+        </div>
+        <p class="mu">
+          Drag output pin → input pin to wire. Right-click or long-press for actions. Shift-click adds to the selection. Ctrl+G groups,
+          Ctrl+Z / Ctrl+Shift+Z undo / redo, Ctrl+S saves.
+        </p>
+      </aside>
+    </main>
+    <div id="dt">
+      <button data-k="sel" class="on" title="Select">↖</button><button data-k="pen" title="Pen">✎</button
+      ><button data-k="line" title="Line">╱</button><button data-k="arrow" title="Arrow">➚</button
+      ><button data-k="rect" title="Rectangle">▭</button><button data-k="ell" title="Ellipse">◯</button
+      ><button data-k="text" title="Text">T</button><button data-k="erase" title="Eraser (removes drawings)">⌫</button
+      ><input type="color" id="dc" value="#e8543a" title="Colour" style="width: 34px; height: 30px; padding: 0" /><select
+        id="dw"
+        title="Thickness"
+      >
+        <option value="2">Thin</option>
+        <option value="4" selected>Medium</option>
+        <option value="8">Thick</option></select
+      ><button id="ly" title="Layers">☰ Layers</button><span class="mu hm">Drawings are saved in the project file</span>
+      <div id="lp" hidden></div>
+    </div>
+    <footer>
+      <div id="sh">
+        <b>Waveforms</b><span id="chips"></span
+        ><label class="mu">Time zoom <input type="range" id="wz" min="40" max="1000" value="300" style="width: 110px" /></label>
+      </div>
+      <canvas id="sc"></canvas>
+    </footer>
+    <input type="file" id="fi" accept=".json,.gateforge,application/json" hidden />
+    <div id="wl">
+      <aside>
+        <div class="lgo">
+          <svg class="mk" aria-hidden="true"><use href="#ll-mark" /></svg>
+          <div>
+            <b>Logic<span>Lab</span></b
+            ><small>Digital Electronics Suite</small>
+          </div>
+        </div>
+        <div style="height: 14px"></div>
+        <button class="nv on" data-s="wt">▦ Templates</button><button class="nv" data-s="wrc"><svg class="ui-icon" aria-hidden="true"><use href="#icon-clock" /></svg> Recent Projects</button
+        ><a class="nv" href="learn/"><svg class="ui-icon" aria-hidden="true"><use href="#icon-book" /></svg> Learn</a>
+        <div class="nl">Tools</div>
+        <button class="nt" data-v="sch">▷ Circuit Editor</button><button class="nt" data-v="tr">∿ Transistor</button
+        ><button class="nt" data-v="bb">▤ Breadboard</button><button class="nt" data-v="pcb">▣ PCB</button>
+        <div class="nl">Resources</div>
+        <button class="nv" id="wexamples" data-s="wt">Examples</button><button id="wh"><svg class="ui-icon" aria-hidden="true"><use href="#icon-keyboard" /></svg> Shortcuts</button>
+        <div style="flex: 1"></div>
+        <button id="wn" class="pr big">+ New Project</button><button id="wo" class="big"><svg class="ui-icon" aria-hidden="true"><use href="#icon-folder" /></svg> Open File…</button>
+      </aside>
+      <section id="wmain">
+        <div class="wtop">
+          <div class="sbx"><span>⌕</span><input type="search" id="wq" placeholder="Search templates and projects…" /></div>
+          <button id="wth" title="Toggle theme" aria-label="Toggle theme"><svg class="ui-icon" aria-hidden="true"><use href="#icon-theme" /></svg></button><button id="wav" class="avb">Sign in</button>
+        </div>
+        <div id="wbn" hidden>
+          <span>☁ Sign in to sync your projects across devices and to use LogicLab AI. Everything also works offline.</span
+          ><button class="pr" id="wsi">Sign in</button>
+        </div>
+        <div class="hero">
+          <div>
+            <div class="hero-eyebrow"><span></span> Your digital electronics workspace</div>
+            <h1>Build, Simulate &amp; Learn<br /><em>Digital Circuits</em></h1>
+            <p>Go from your first logic gate to complete digital systems. Design, simulate, and understand it all in one place.</p>
+            <div class="hb">
+              <button id="wn2" class="pr big">Start building <span aria-hidden="true">→</span></button><button id="wex" class="big">Explore examples</button
+              ><button id="wai" class="big ai">✦ Build with AI</button>
+            </div>
+            <div class="hero-points"><span><b>✓</b> Live simulation</span><span><b>✓</b> Truth tables &amp; waveforms</span><span><b>✓</b> Works offline</span></div>
+            <a
+              class="github-link"
+              href="https://github.com/Anugrahjacob777?tab=repositories"
+              target="_blank"
+              rel="noopener noreferrer"
+            ><svg class="ui-icon" aria-hidden="true"><use href="#icon-github" /></svg> Open source on GitHub <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="hi">
+            <svg viewBox="0 0 360 240" fill="none">
+              <ellipse cx="190" cy="205" rx="150" ry="20" fill="#2563eb" opacity=".08" />
+              <rect x="95" y="40" width="120" height="120" rx="22" fill="#dbeafe" stroke="#2563eb" stroke-width="5" />
+              <g stroke="#2563eb" stroke-width="5" stroke-linecap="round">
+                <path
+                  d="M120 22v18M145 22v18M170 22v18M195 22v18M120 160v18M145 160v18M170 160v18M195 160v18M77 65h18M77 90h18M77 115h18M77 140h18M215 65h18M215 90h18M215 115h18M215 140h18"
+                />
+              </g>
+              <path
+                d="M125 70h22a28 28 0 0 1 0 60h-22z M100 85h25 M100 115h25 M175 100h30"
+                stroke="#1e40af"
+                stroke-width="5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <g transform="rotate(-8 280 110)">
+                <rect x="235" y="40" width="115" height="130" rx="16" fill="#fff" stroke="#bfdbfe" stroke-width="3" />
+                <g fill="#2563eb">
+                  <rect x="250" y="62" width="16" height="16" rx="4" />
+                  <rect x="250" y="90" width="16" height="16" rx="4" />
+                </g>
+                <g fill="none" stroke="#bfdbfe" stroke-width="3">
+                  <rect x="250" y="118" width="16" height="16" rx="4" />
+                  <rect x="250" y="146" width="16" height="16" rx="4" />
+                </g>
+                <g stroke="#1e3a8a" stroke-width="3.5" stroke-linecap="round"><path d="M276 70h56M276 98h46M276 126h56M276 154h40" /></g>
+              </g>
+            </svg>
+          </div>
+        </div>
+        <div class="wt card" id="wt">
+          <div class="wh"><h3>Start from a Template</h3></div>
+          <div id="wf"></div>
+          <div id="wc"></div>
+        </div>
+        <div class="wt card" id="wrc">
+          <div class="wh"><h3><svg class="ui-icon" aria-hidden="true"><use href="#icon-clock" /></svg> Recent Projects</h3></div>
+          <div id="rl"></div>
+        </div>
+        <section class="wt card faq" id="faq" aria-labelledby="faqh">
+          <div class="wh"><h2 id="faqh">Frequently asked questions</h2></div>
+          <details>
+            <summary>What is LogicLab?</summary>
+            <p>
+              LogicLab is a free digital electronics suite that runs in your browser. You can build logic circuits, simulate them in real
+              time, read truth tables and waveforms, and explore schematic, transistor, breadboard and PCB views.
+            </p>
+          </details>
+          <details>
+            <summary>Is LogicLab free to use?</summary>
+            <p>
+              Yes. The editor, examples and simulator are free and open source. An account is only needed if you want to sync projects
+              between devices or use LogicLab AI.
+            </p>
+          </details>
+          <details>
+            <summary>Does LogicLab work offline?</summary>
+            <p>
+              Yes. After your first visit the app is cached and projects are saved on your device, so you can keep working without a
+              connection. Signed-in users sync their projects when they are back online.
+            </p>
+          </details>
+          <details>
+            <summary>Which parts and circuits can I simulate?</summary>
+            <p>
+              Switches, clocks, LEDs, voltmeters, AND, OR, NOT, NAND, NOR, XOR and XNOR gates, D, T and JK flip-flops and shift registers,
+              plus ready-made examples such as adders, multiplexers, decoders, latches, counters and shift registers.
+            </p>
+          </details>
+          <details>
+            <summary>Can I share or export my circuits?</summary>
+            <p>Yes. Save downloads a project file that you can reopen or share, and you can export the circuit as a PNG image or a PDF.</p>
+          </details>
+          <details>
+            <summary>What is LogicLab AI?</summary>
+            <p>
+              An assistant for signed-in users that explains circuits, answers questions and can build and test circuits on the canvas for
+              you.
+            </p>
+          </details>
+        </section>
+        <p class="wfoot">LogicLab is open source (MIT). <a href="learn/">Digital electronics guides</a></p>
+      </section>
+    </div>
+    <div class="mo" id="mauth" hidden>
+      <div class="mc">
+        <button class="x" data-close aria-label="Close">×</button>
+        <div class="lgo" style="justify-content: center">
+          <svg class="mk" aria-hidden="true"><use href="#ll-mark" /></svg>
+          <div>
+            <b>Logic<span>Lab</span></b
+            ><small>Digital Electronics Suite</small>
+          </div>
+        </div>
+        <h2 id="at">Welcome back</h2>
+        <p class="mu" id="as"></p>
+        <div id="aerr" class="al er" hidden></div>
+        <form id="au" novalidate>
+          <input type="text" name="fname" placeholder="Full name" autocomplete="name" hidden /><input
+            type="email"
+            name="email"
+            placeholder="Email address"
+            autocomplete="email"
+            required
+          /><input type="password" name="password" placeholder="Password (8+ characters)" autocomplete="current-password" required /><input
+            type="password"
+            name="password2"
+            placeholder="Confirm password"
+            autocomplete="new-password"
+            hidden
+          /><label class="ck" id="terms" hidden
+            ><input type="checkbox" name="terms" /> <span>I agree to the Terms of Service and Privacy Policy.</span></label
+          ><button class="pr big" id="asb">Log in</button>
+        </form>
+        <div class="alt" id="asw"></div>
+        <button class="big" id="aoff">Continue offline</button>
+      </div>
+    </div>
+    <div class="mo" id="mhelp" hidden>
+      <div class="mc">
+        <button class="x" data-close aria-label="Close">×</button>
+        <h2>Shortcuts &amp; help</h2>
+        <table class="sk">
+          <tr>
+            <td>Ctrl/⌘ + Z / Shift+Z</td>
+            <td>Undo / redo</td>
+          </tr>
+          <tr>
+            <td>Ctrl/⌘ + G / Shift+G</td>
+            <td>Group / ungroup</td>
+          </tr>
+          <tr>
+            <td>Ctrl/⌘ + A</td>
+            <td>Select all</td>
+          </tr>
+          <tr>
+            <td>Ctrl/⌘ + S</td>
+            <td>Download project file</td>
+          </tr>
+          <tr>
+            <td>Delete</td>
+            <td>Delete selection</td>
+          </tr>
+          <tr>
+            <td>Alt + click</td>
+            <td>Pick one part inside a group</td>
+          </tr>
+          <tr>
+            <td>Right-click / long-press</td>
+            <td>Context menu</td>
+          </tr>
+        </table>
+        <p class="mu">Projects auto-save on this device and work offline. Sign in to sync them to your account and use LogicLab AI.</p>
+      </div>
+    </div>
+    <aside id="ai" hidden>
+      <div class="ah">
+        <span>✦</span><b>LogicLab AI</b><em>Agentic AI</em><button id="ax" title="Minimize" aria-label="Close AI">–</button>
+      </div>
+      <div id="am">
+        <div id="ah0">
+          <div class="orb">✦</div>
+          <h2>How can I help you build today?</h2>
+          <p>Your AI agent for digital electronics, circuit design, simulation and PCB.</p>
+          <div class="pc">
+            <button data-p="Design and build a 4-bit adder on the canvas, then test it.">
+              <b>Design a circuit</b><small>e.g. 4-bit adder</small>
+            </button>
+            <button data-p="Explain a master-slave flip-flop and build one so I can see it work.">
+              <b>Explain a concept</b><small>e.g. Master–Slave Flip-Flop</small>
+            </button>
+            <button data-p="Generate Verilog for the circuit on the canvas."><b>Generate code</b><small>e.g. Verilog / VHDL</small></button>
+            <button data-p="Create the truth table and the simplified Boolean expression for the circuit on the canvas.">
+              <b>Solve a problem</b><small>e.g. Create truth table</small>
+            </button>
+            <button data-p="Test the circuit on the canvas with every input combination and report the results.">
+              <b>Simulate for me</b><small>Build and test a circuit</small>
+            </button>
+            <button data-p="Plan a digital clock project: list the blocks, then build the first block on the canvas.">
+              <b>Plan a project</b><small>e.g. Digital clock, ALU</small>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="asg">
+        <button>Explain this circuit</button><button>Show truth table</button><button>Generate Verilog</button><button>Quiz me</button>
+      </div>
+      <form id="af">
+        <textarea id="aq" rows="1" placeholder="Ask anything about digital electronics…" aria-label="Message LogicLab AI"></textarea
+        ><button class="pr" id="as" aria-label="Send">➤</button>
+      </form>
+    </aside>
+    <div id="toasts" aria-live="polite"></div>
+    <nav id="bn">
+      <button data-n="templates"><span>▦</span>Templates</button><button data-n="pal"><span>◁▷</span>Components</button
+      ><button data-n="ai" class="fab" aria-label="LogicLab AI">✦</button><button data-n="wave"><span>∿</span>Waveform</button
+      ><button data-n="side"><span>⋯</span>More</button>
+    </nav>
+    <script defer src="js/config.js?v=f7084c26"></script>
+    <script defer src="js/examples.js?v=f7084c26"></script>
+    <script defer src="js/ads.js?v=f7084c26"></script>
+    <script defer src="js/app.js?v=f7084c26"></script>
+    <script defer src="js/merge.js?v=f7084c26"></script>
+    <script defer src="js/collab.js?v=f7084c26"></script>
+  </body>
+</html>

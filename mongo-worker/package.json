@@ -1,0 +1,9 @@
+{
+  "name": "logiclab-mongo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "deploy": "wrangler deploy" },
+  "dependencies": { "mongodb": "^6.15.0" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
