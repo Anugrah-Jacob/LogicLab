@@ -16,7 +16,7 @@ The claim only works while no administrator exists. After that, administrators p
 - **Users**: search, add a user (you choose their password), edit name, role and personal AI limit, reset a password, disable or enable an account, delete an account with all its circuits.
 - **Circuits**: every project that users have synced, with owner, type, size and the template it started from. You can delete one.
 - **AI usage**: requests per day for 30 days and the top users.
-- **Settings**: AI provider, model, base URL, API key, daily limit, AI on/off, and whether anyone can sign up.
+- **Settings**: AI provider, model, base URL, provider API keys, daily limit, AI on/off, and whether anyone can sign up.
 - **System**: health checks for the database, migrations, secrets and the AI provider.
 
 The sidebar can be collapsed with the menu button; the choice is remembered.
@@ -24,6 +24,7 @@ The sidebar can be collapsed with the menu button; the choice is remembered.
 ## The AI provider and key
 
 - The key is encrypted with a key derived from `JWT_SECRET` before it is stored in the database. It is never sent back to any browser; the form only shows the last four characters.
+- You can save keys for multiple providers under **Provider API keys**. Each key is encrypted separately; LogicLab uses the key matching the selected provider and can use Gemini as a Groq fallback.
 - **Test connection** sends one tiny request with your saved settings and reports success, the time it took, or the provider's error.
 - You can switch providers at any time. Every user's chat keeps working.
 - If you do not save a key here, the server falls back to an `ANTHROPIC_API_KEY` secret when the provider is Anthropic.

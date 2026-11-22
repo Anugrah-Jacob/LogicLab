@@ -427,6 +427,24 @@ label.f small {
   font-weight: 400;
   margin-top: 3px;
 }
+.provider-keys {
+  margin: 8px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.provider-keys summary {
+  color: var(--tx);
+  cursor: pointer;
+  font-weight: 700;
+}
+.provider-keys .muted {
+  margin: 8px 0 12px;
+}
+.provider-keys label.f {
+  margin-bottom: 14px;
+}
 .in {
   width: 100%;
   padding: 10px 12px;

@@ -1,9 +1,9 @@
 import http from 'node:http';
 import { startApp } from './app-server.mjs';
 import { test, eq, ok, summary } from './harness.mjs';
-import { storeKey, saveSetting } from '../server/settings.js';
+import { storeKey, storeProviderKey, saveSetting } from '../server/settings.js';
 
-const app = await startApp({ GEMINI_API_KEY: 'gemini-test-key' });
+const app = await startApp();
 const nativeFetch = globalThis.fetch;
 let groqStatus = 429;
 const calls = [];
@@ -29,6 +29,7 @@ await saveSetting(app.env, 'ai_provider', 'groq');
 await saveSetting(app.env, 'ai_model', 'llama-3.3-70b-versatile');
 await saveSetting(app.env, 'ai_base_url', baseUrl + '/v1');
 await storeKey(app.env, 'groq-test-key');
+await storeProviderKey(app.env, 'gemini', 'gemini-test-key');
 
 globalThis.fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input.url;

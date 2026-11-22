@@ -19,6 +19,7 @@ import {
   saveSetting,
   storeKey,
   storeGeminiKey,
+  storeProviderKey,
   resolveKey,
   effectiveBase,
   validBaseUrl,
@@ -352,8 +353,36 @@ export async function getSettings(env) {
   const geminiKey = await resolveKey(env, {
     provider: 'gemini',
     keyBlob: '',
-    geminiKeyBlob: s.geminiKeyBlob
+    geminiKeyBlob: s.geminiKeyBlob,
+    providerKeyBlobs: s.providerKeyBlobs
   });
+  const providers = Object.fromEntries(
+    await Promise.all(
+      Object.entries(PROVIDERS).map(async ([id, p]) => [
+        id,
+        {
+          label: p.label,
+          kind: p.kind,
+          base: p.base,
+          model: p.model,
+          models: p.models,
+          hasKey: !!(
+            s.providerKeyBlobs[id] ||
+            (id === s.provider && s.keyBlob) ||
+            (id === 'gemini' && s.geminiKeyBlob)
+          ),
+          keyHint: keyHint(
+            await resolveKey(env, {
+              provider: id,
+              keyBlob: id === s.provider ? s.keyBlob : '',
+              geminiKeyBlob: id === 'gemini' ? s.geminiKeyBlob : '',
+              providerKeyBlobs: s.providerKeyBlobs
+            })
+          )
+        }
+      ])
+    )
+  );
   return json({
     provider: s.provider,
     model: s.model,
@@ -361,23 +390,24 @@ export async function getSettings(env) {
     effectiveBase: effectiveBase(s),
     hasKey: !!key,
     keyHint: keyHint(key),
-    keySource: s.keyBlob ? 'admin' : key ? 'environment' : '',
+    keySource:
+      s.providerKeyBlobs[s.provider] || s.keyBlob || (s.provider === 'gemini' && s.geminiKeyBlob)
+        ? 'admin'
+        : key
+          ? 'environment'
+          : '',
     hasGeminiFallback: !!geminiKey,
     geminiKeyHint: keyHint(geminiKey),
     dailyLimit: s.dailyLimit,
     aiEnabled: s.aiEnabled,
     signupsOpen: s.signupsOpen,
-    providers: Object.fromEntries(
-      Object.entries(PROVIDERS).map(([id, p]) => [
-        id,
-        { label: p.label, kind: p.kind, base: p.base, model: p.model, models: p.models }
-      ])
-    )
+    providers
   });
 }
 
 export async function putSettings(request, env) {
   const b = await readJson(request);
+  const currentProvider = (await loadSettings(env)).provider;
   if (b.provider !== undefined) {
     if (!PROVIDERS[b.provider]) return fail(400, 'Unknown provider.');
     await saveSetting(env, 'ai_provider', b.provider);
@@ -394,6 +424,19 @@ export async function putSettings(request, env) {
   if (typeof b.geminiApiKey === 'string' && b.geminiApiKey.trim())
     await storeGeminiKey(env, b.geminiApiKey.trim());
   if (b.clearGeminiKey === true) await saveSetting(env, 'ai_gemini_key', '');
+  if (b.providerKeys && typeof b.providerKeys === 'object' && !Array.isArray(b.providerKeys)) {
+    for (const [provider, value] of Object.entries(b.providerKeys)) {
+      if (!PROVIDERS[provider]) return fail(400, 'Unknown provider key.');
+      if (typeof value === 'string' && value.trim()) await storeProviderKey(env, provider, value.trim());
+    }
+  }
+  if (typeof b.clearProviderKey === 'string') {
+    if (!PROVIDERS[b.clearProviderKey]) return fail(400, 'Unknown provider key.');
+    const clearKeys = [saveSetting(env, 'ai_key_' + b.clearProviderKey, '')];
+    if (b.clearProviderKey === currentProvider) clearKeys.push(saveSetting(env, 'ai_key', ''));
+    if (b.clearProviderKey === 'gemini') clearKeys.push(saveSetting(env, 'ai_gemini_key', ''));
+    await Promise.all(clearKeys);
+  }
   if (b.dailyLimit !== undefined)
     await saveSetting(env, 'ai_daily_limit', Math.max(1, Math.min(100000, Number(b.dailyLimit) | 0 || 60)));
   if (typeof b.aiEnabled === 'boolean') await saveSetting(env, 'ai_enabled', b.aiEnabled ? 1 : 0);

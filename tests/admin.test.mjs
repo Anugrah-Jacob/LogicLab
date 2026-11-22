@@ -262,6 +262,14 @@ await test('AI provider settings: validation, encrypted key, masked in responses
   const raw = JSON.stringify((await admin.get('/admin/settings')).data);
   ok(!raw.includes(expectedKey), 'the key is never returned');
   eq([saved.data.hasKey, saved.data.keyHint, saved.data.model], [true, '••••1111', 'mock-model']);
+  await admin.put('/admin/settings', {
+    provider: 'custom',
+    providerKeys: { custom: expectedKey, groq: 'gsk-test-MULTI2222' }
+  });
+  const multi = (await admin.get('/admin/settings')).data;
+  eq([multi.providers.custom.hasKey, multi.providers.groq.hasKey], [true, true]);
+  eq([multi.providers.custom.keyHint, multi.providers.groq.keyHint], ['••••1111', '••••2222']);
+  ok(!JSON.stringify(multi).includes('gsk-test-MULTI2222'), 'provider keys are never returned');
   const good = (await admin.post('/admin/settings/test')).data;
   eq([good.ok, good.reply], [true, 'OK']);
   ok(seen.at(-1).headers.authorization === 'Bearer ' + expectedKey, 'the saved key was used');
@@ -492,9 +500,17 @@ await test('admin panel: sign-in screen, access control, dashboard, users, setti
   await page.fill('[name=model]', 'mock-model');
   await page.fill('[name=baseUrl]', MOCK + '/v1');
   expectedKey = 'sk-test-UIKEY333';
-  await page.fill('[name=apiKey]', expectedKey);
+  await page.click('.provider-keys summary');
+  await page.locator('[data-provider-key=custom]').fill(expectedKey);
+  await page.locator('[data-provider-key=groq]').fill('gsk-test-UIKEY444');
   await page.click('#aiform button.pr');
-  await page.waitForFunction(() => document.querySelector('[name=apiKey]')?.placeholder.includes('••••'));
+  await page.waitForFunction(() =>
+    document.querySelector('[data-provider-key=custom]')?.placeholder.includes('••••')
+  );
+  ok(
+    (await page.locator('[data-provider-key=groq]').getAttribute('placeholder')).includes('••••'),
+    'other provider keys can be saved alongside the active provider'
+  );
   await page.click('[data-act=testai]');
   await page.waitForFunction(() => document.querySelector('#aimsg')?.innerText.includes('Connected'));
   await page.click('.nav a[data-page=system]');

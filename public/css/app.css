@@ -1532,9 +1532,9 @@ footer {
   position: fixed;
   right: 16px;
   bottom: 12px;
-  width: min(760px, calc(100vw - 32px));
+  width: min(600px, calc(100vw - 32px));
   max-width: none;
-  height: min(880px, calc(100dvh - 24px));
+  height: min(680px, calc(100dvh - 40px));
   z-index: 90;
   color: var(--ai-text);
   background:
@@ -1730,8 +1730,9 @@ footer {
   border-color: #b34e75;
 }
 .bb.workflow {
-  align-self: stretch;
-  max-width: none;
+  align-self: flex-start;
+  width: min(560px, 100%);
+  max-width: 100%;
   padding: 16px 18px;
   background: linear-gradient(135deg, #131e3d, #101832);
   border-color: #485994;
@@ -1743,6 +1744,40 @@ footer {
   gap: 10px;
   padding-bottom: 12px;
   border-bottom: 1px solid #ffffff20;
+}
+.ai-workflow-toggle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid #ffffff24;
+  border-radius: 8px;
+  color: #dce5ff;
+  background: #ffffff0d;
+  font-size: 18px;
+}
+.ai-workflow-toggle:hover {
+  background: #ffffff1a;
+}
+.ai-workflow-steps {
+  transition: opacity 0.15s ease;
+}
+.bb.workflow.collapsed {
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 12px;
+  box-shadow: none;
+}
+.bb.workflow.collapsed .ai-workflow-head {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.bb.workflow.collapsed .ai-workflow-head b {
+  font-size: 14px;
+}
+.bb.workflow.collapsed .ai-workflow-steps {
+  display: none;
 }
 .ai-workflow-head b {
   flex: 1;

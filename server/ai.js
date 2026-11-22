@@ -265,7 +265,8 @@ function geminiFallbackSettings(settings) {
     model: 'gemini-2.5-flash',
     baseUrl: '',
     keyBlob: '',
-    geminiKeyBlob: settings.geminiKeyBlob || ''
+    geminiKeyBlob: settings.geminiKeyBlob || '',
+    providerKeyBlobs: settings.providerKeyBlobs || {}
   };
 }
 

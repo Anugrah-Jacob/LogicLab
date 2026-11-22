@@ -773,6 +773,28 @@
             '</option>'
         )
         .join('');
+      const providerKeyFields = Object.entries(s.providers)
+        .map(
+          ([id, provider]) =>
+            '<label class="f">' +
+            esc(provider.label) +
+            '<input class="in" type="password" data-provider-key="' +
+            esc(id) +
+            '" autocomplete="new-password" placeholder="' +
+            (provider.hasKey
+              ? 'Saved (' + esc(provider.keyHint) + '). Type a new key to replace it.'
+              : provider.keyHint
+                ? 'Configured (' + esc(provider.keyHint) + ')'
+                : 'Paste API key') +
+            '">' +
+            (provider.hasKey
+              ? '<button type="button" class="btn danger sm" data-act="clearProviderKey" data-id="' +
+                esc(id) +
+                '">Remove key</button>'
+              : '') +
+            '</label>'
+        )
+        .join('');
       return (
         '<div class="g2"><form class="card" id="aiform"><h2>' +
         ic('spark') +
@@ -790,18 +812,9 @@
         '" placeholder="' +
         esc(p.base || 'https://your-provider.example/v1') +
         '" autocomplete="off"><small>Leave empty to use the provider’s default. Custom providers need an OpenAI-compatible URL that ends in /v1.</small></label>' +
-        '<label class="f">API key<input class="in" type="password" name="apiKey" autocomplete="new-password" placeholder="' +
-        (s.hasKey ? 'Saved (' + esc(s.keyHint) + '). Type a new key to replace it.' : 'Paste your API key') +
-        '"><small>' +
-        (s.keySource === 'environment'
-          ? 'Using a provider environment secret. Saving a key here overrides it. '
-          : '') +
-        'The key is encrypted in the database and is never shown again.</small></label>' +
-        '<label class="f">Gemini fallback API key<input class="in" type="password" name="geminiApiKey" autocomplete="new-password" placeholder="' +
-        (s.hasGeminiFallback
-          ? 'Saved (' + esc(s.geminiKeyHint) + '). Type a new key to replace it.'
-          : 'Paste a Gemini API key') +
-        '"><small>Used automatically when Groq is exhausted or unavailable. The key is encrypted and is never shown again.</small></label>' +
+        '<details class="provider-keys"><summary>Provider API keys</summary><p class="muted">Save multiple provider keys here. LogicLab uses the selected provider and can use Gemini as a Groq fallback. Keys are encrypted and never shown again.</p>' +
+        providerKeyFields +
+        '</details>' +
         '<label class="f">Daily AI requests per user<input class="in" type="number" min="1" name="dailyLimit" value="' +
         s.dailyLimit +
         '"></label>' +
@@ -809,12 +822,6 @@
         (s.aiEnabled ? ' checked' : '') +
         '>LogicLab AI is switched on</label>' +
         '<div id="aimsg"></div><div class="acts" style="justify-content:flex-start"><button class="btn pr">Save</button><button type="button" class="btn soft" data-act="testai">Test connection</button>' +
-        (s.hasKey && s.keySource === 'admin'
-          ? '<button type="button" class="btn danger" data-act="clearkey">Remove saved key</button>'
-          : '') +
-        (s.hasGeminiFallback
-          ? '<button type="button" class="btn danger" data-act="clearGeminiKey">Remove Gemini key</button>'
-          : '') +
         '</div></form>' +
         '<div><form class="card" id="platform"><h2>' +
         ic('users') +
@@ -916,8 +923,10 @@
           dailyLimit: Number(f.dailyLimit.value),
           aiEnabled: f.aiEnabled.checked
         };
-        if (f.apiKey.value.trim()) body.apiKey = f.apiKey.value;
-        if (f.geminiApiKey.value.trim()) body.geminiApiKey = f.geminiApiKey.value;
+        body.providerKeys = {};
+        form.querySelectorAll('[data-provider-key]').forEach((input) => {
+          if (input.value.trim()) body.providerKeys[input.dataset.providerKey] = input.value.trim();
+        });
         try {
           await api('/admin/settings', { method: 'PUT', body });
           toast('AI settings saved.', 'success');
@@ -1109,6 +1118,11 @@
     if (act === 'clearGeminiKey') {
       await api('/admin/settings', { method: 'PUT', body: { clearGeminiKey: true } });
       toast('Gemini fallback key removed.', 'success');
+      return route();
+    }
+    if (act === 'clearProviderKey') {
+      await api('/admin/settings', { method: 'PUT', body: { clearProviderKey: id } });
+      toast('Provider key removed.', 'success');
       return route();
     }
   }

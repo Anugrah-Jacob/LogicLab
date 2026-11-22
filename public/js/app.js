@@ -5590,10 +5590,20 @@
   function aiWorkflow() {
     const node = aiAdd(
       'workflow',
-      '<div class="ai-workflow-head"><span class="ai-workflow-icon">⌘</span><b>Running agentic workflow…</b><span class="ai-workflow-state">Running</span></div><div class="ai-workflow-steps"></div>'
+      '<div class="ai-workflow-head"><span class="ai-workflow-icon">⌘</span><b>Running agentic workflow…</b><span class="ai-workflow-state">Running</span><button type="button" class="ai-workflow-toggle" aria-label="Collapse workflow details" aria-expanded="true">−</button></div><div class="ai-workflow-steps"></div>'
     );
     return node;
   }
+  $('#am').addEventListener('click', (e) => {
+    const toggle = e.target.closest('.ai-workflow-toggle');
+    if (!toggle) return;
+    const workflow = toggle.closest('.workflow');
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!expanded));
+    toggle.setAttribute('aria-label', expanded ? 'Expand workflow details' : 'Collapse workflow details');
+    toggle.textContent = expanded ? '+' : '−';
+    workflow.classList.toggle('collapsed', expanded);
+  });
   function aiWorkflowStep(node, label) {
     const step = document.createElement('div');
     step.className = 'ai-workflow-step';
@@ -5607,6 +5617,12 @@
     node.classList.add('done');
     node.querySelector('.ai-workflow-state').textContent = 'Complete';
     node.querySelector('.ai-workflow-icon').textContent = '✓';
+    node.querySelector('.ai-workflow-head b').textContent = 'Agent workflow completed';
+    node.classList.add('collapsed');
+    const toggle = node.querySelector('.ai-workflow-toggle');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Expand workflow details');
+    toggle.textContent = '+';
   }
   /**
    * Send a chat message to LogicLab AI and run the tool loop until the model gives a final answer.

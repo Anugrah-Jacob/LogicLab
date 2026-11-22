@@ -67,6 +67,17 @@ await test('AI retries the failed step and continues without replaying completed
   eq(requests[2], requests[1], 'retry reuses the exact failed-step conversation');
   eq(await page.locator('#am .bb.u').count(), 1, 'user message is not duplicated');
   eq(await page.locator('#am .bb.workflow').count(), 1, 'completed workflow is not replayed');
+  ok(await page.locator('#am .bb.workflow').evaluate((node) => node.classList.contains('collapsed')));
+  eq(await page.locator('.ai-workflow-toggle').getAttribute('aria-expanded'), 'false');
+  eq(await page.locator('.ai-workflow-head b').innerText(), 'Agent workflow completed');
+  const panel = await page.locator('#ai').boundingBox();
+  ok(
+    panel.width <= 620 && panel.height <= 720,
+    'desktop chat panel stays at a normal size: ' + JSON.stringify(panel)
+  );
+  await page.click('.ai-workflow-toggle');
+  eq(await page.locator('.ai-workflow-toggle').getAttribute('aria-expanded'), 'true');
+  ok(!(await page.locator('#am .bb.workflow').evaluate((node) => node.classList.contains('collapsed'))));
   ok((await page.locator('#am').innerText()).includes('Built 2 parts and 1 wires'));
   ok((await page.locator('#am').innerText()).includes('Circuit built and the request continued.'));
   eq(await page.locator('#ai-provider-status').innerText(), 'Gemini backup');

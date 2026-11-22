@@ -66,6 +66,11 @@ export async function loadSettings(env) {
     baseUrl: raw.ai_base_url || '',
     keyBlob: raw.ai_key || '',
     geminiKeyBlob: raw.ai_gemini_key || '',
+    providerKeyBlobs: Object.fromEntries(
+      Object.entries(raw)
+        .filter(([key]) => key.startsWith('ai_key_'))
+        .map(([key, value]) => [key.slice('ai_key_'.length), value])
+    ),
     dailyLimit: Number(raw.ai_daily_limit) || Number(env.AI_DAILY_LIMIT) || 60,
     aiEnabled: raw.ai_enabled !== '0',
     signupsOpen: raw.signups_open !== '0'
@@ -80,8 +85,11 @@ export async function saveSetting(env, key, value) {
 
 /** The API key to use: the one saved in the admin panel, or the ANTHROPIC_API_KEY secret as a fallback. */
 export async function resolveKey(env, settings) {
+  const providerKeyBlob = settings.providerKeyBlobs?.[settings.provider] || '';
   const keyBlob =
-    settings.provider === 'gemini' && !settings.keyBlob ? settings.geminiKeyBlob || '' : settings.keyBlob;
+    providerKeyBlob ||
+    (settings.provider === 'gemini' && settings.geminiKeyBlob ? settings.geminiKeyBlob : '') ||
+    settings.keyBlob;
   if (keyBlob) {
     try {
       return await unseal(env, keyBlob);
@@ -115,6 +123,10 @@ export function validBaseUrl(value) {
 
 export async function storeKey(env, plain) {
   await saveSetting(env, 'ai_key', await seal(env, plain));
+}
+
+export async function storeProviderKey(env, provider, plain) {
+  await saveSetting(env, 'ai_key_' + provider, await seal(env, plain));
 }
 
 export async function storeGeminiKey(env, plain) {
