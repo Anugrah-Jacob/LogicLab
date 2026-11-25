@@ -3774,7 +3774,7 @@
         pan = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
         return;
       }
-      PR = e.pointerType == 'touch' ? 16 : 10;
+      PR = e.pointerType == 'touch' ? 22 : e.pointerType == 'pen' ? 18 : 14;
       if (ptr.size == 2) {
         drag = marq = pan = hd = null;
         pd = 0;

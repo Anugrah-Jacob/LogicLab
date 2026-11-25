@@ -514,6 +514,113 @@ await test('Wire tool connects output and input with two clicks and ignores empt
     'wire uses automatic routing'
   );
 });
+await test('Wire tool accepts clicks just outside visible pin markers', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' }
+      ]
+    })
+  );
+  const box = await pg.locator('#cv').boundingBox();
+  const pts = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      a = d.nodes.find((n) => n.name === 'A'),
+      g = d.nodes.find((n) => n.name === 'U1'),
+      v = LogicLabHost.view().v,
+      screen = (x, y) => ({ x: v.x + x * v.s, y: v.y + y * v.s });
+    return {
+      start: screen(a.x + 76, a.y + 22),
+      end: screen(g.x, g.y + 20)
+    };
+  });
+  await pg.click('#tw');
+  await pg.mouse.click(box.x + pts.start.x + 12, box.y + pts.start.y);
+  await pg.mouse.click(box.x + pts.end.x - 12, box.y + pts.end.y);
+  const doc = await pg.evaluate(() => LogicLab.exportProject()),
+    a = doc.nodes.find((n) => n.name === 'A'),
+    g = doc.nodes.find((n) => n.name === 'U1');
+  ok(
+    doc.wires.some((w) => w.a === a.id && w.b === g.id),
+    'nearby clicks should snap to the source and target pins'
+  );
+});
+await test('touch taps outside pin markers still connect without opening a context menu', async () => {
+  const m = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true
+  });
+  const p = await m.newPage();
+  await p.goto(url);
+  await p.waitForFunction(() => window.LogicLab);
+  await p.click('#wn');
+  await p.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' }
+      ]
+    })
+  );
+  await p.click('#tw');
+  const points = await p.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      a = d.nodes.find((n) => n.name === 'A'),
+      g = d.nodes.find((n) => n.name === 'U1'),
+      { v, el } = LogicLabHost.view(),
+      r = el.getBoundingClientRect(),
+      screen = (x, y) => ({ x: r.x + v.x + x * v.s, y: r.y + v.y + y * v.s });
+    return {
+      start: screen(a.x + 76, a.y + 22),
+      end: screen(g.x, g.y + 20)
+    };
+  });
+  const tap = (point) =>
+    p.evaluate(async ({ x, y }) => {
+      const canvas = LogicLabHost.view().el,
+        wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      canvas.setPointerCapture = () => {};
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          pointerId: 11,
+          pointerType: 'touch',
+          button: 0,
+          buttons: 1,
+          clientX: x,
+          clientY: y,
+          bubbles: true
+        })
+      );
+      await wait(80);
+      canvas.dispatchEvent(
+        new PointerEvent('pointerup', {
+          pointerId: 11,
+          pointerType: 'touch',
+          button: 0,
+          buttons: 0,
+          clientX: x,
+          clientY: y,
+          bubbles: true
+        })
+      );
+    }, point);
+  await tap({ x: points.start.x + 18, y: points.start.y });
+  await tap({ x: points.end.x - 18, y: points.end.y });
+  const result = await p.evaluate(() => ({
+    wires: LogicLab.exportProject().wires,
+    menuHidden: document.querySelector('#cm').hidden
+  }));
+  const a = await p.evaluate(() => LogicLab.exportProject().nodes.find((n) => n.name === 'A').id),
+    g = await p.evaluate(() => LogicLab.exportProject().nodes.find((n) => n.name === 'U1').id);
+  ok(
+    result.wires.some((w) => w.a === a && w.b === g),
+    'two touch taps should connect nearby output and input pins'
+  );
+  ok(result.menuHidden, 'ordinary touch taps should not open a context menu');
+  await m.close();
+});
 await test('wire snapping selects the closest of multiple gate inputs', async () => {
   await pg.evaluate(() =>
     LogicLab.build({
@@ -1010,36 +1117,16 @@ await test('touch long-press opens context menu only while holding the same canv
   await p.goto(url);
   await p.waitForFunction(() => window.LogicLab);
   await p.click('#wn');
-  await p.evaluate(() =>
-    LogicLab.build({
-      parts: [
-        { id: 'A', type: 'IN' },
-        { id: 'G', type: 'NOT' }
-      ]
-    })
-  );
+  await p.evaluate(() => LogicLab.build({ parts: [{ id: 'A', type: 'IN' }] }));
   const point = await p.evaluate(() => {
-    const n = LogicLab.exportProject().nodes.find((part) => part.name === 'G'),
+    const n = LogicLab.exportProject().nodes[0],
       { v, el } = LogicLabHost.view(),
       r = el.getBoundingClientRect();
     return {
-      x: r.left + v.x + (n.x + 10) * v.s,
-      y: r.top + v.y + (n.y + 20) * v.s,
-      input: { x: r.left + v.x + n.x * v.s, y: r.top + v.y + (n.y + 20) * v.s }
+      x: r.left + v.x + (n.x + 30) * v.s,
+      y: r.top + v.y + (n.y + 22) * v.s
     };
   });
-  const output = await p.evaluate(() => {
-    const n = LogicLab.exportProject().nodes.find((part) => part.name === 'A'),
-      { v, el } = LogicLabHost.view(),
-      r = el.getBoundingClientRect();
-    return { x: r.left + v.x + (n.x + 76) * v.s, y: r.top + v.y + (n.y + 22) * v.s };
-  });
-  await p.click('#tw');
-  await p.touchscreen.tap(output.x, output.y);
-  await p.touchscreen.tap(point.input.x, point.input.y);
-  const wired = await p.evaluate(() => LogicLab.exportProject().wires.length);
-  eq(wired, 1, 'two ordinary touch taps should connect an output and input');
-
   const runTouchSequence = (action) =>
     p.evaluate(
       async ({ point, action }) => {
@@ -1061,9 +1148,9 @@ await test('touch long-press opens context menu only while holding the same canv
         canvas.setPointerCapture = () => {};
         send('pointerdown');
         if (action === 'tap') {
-          await wait(80);
+          await wait(10);
           send('pointerup');
-          await wait(30);
+          await wait(40);
           return document.querySelector('#cm').hidden;
         }
         if (action === 'hold') {
