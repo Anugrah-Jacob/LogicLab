@@ -936,21 +936,52 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
   ok(await p.isVisible('.github-link'), 'GitHub open-source link is visible on mobile');
   await p.click('#wn');
   await p.waitForTimeout(400);
-  eq(
-    await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
-    true,
-    'editor fits the screen'
-  );
   ok(await p.isVisible('#bn'), 'bottom nav visible');
   ok(await p.isVisible('#sim'), 'simulation control remains available on phones');
-  ok(
-    await p.evaluate(
-      () =>
-        document.querySelector('#dt').getBoundingClientRect().bottom <=
-        document.querySelector('#bn').getBoundingClientRect().top + 1
-    ),
-    'drawing toolbar is not covered by the bottom nav'
-  );
+  for (const width of [320, 375, 390, 448]) {
+    await p.setViewportSize({ width, height: width === 320 ? 568 : 844 });
+    const layout = await p.evaluate(() => {
+      const rect = (selector) => document.querySelector(selector).getBoundingClientRect(),
+        actions = [...document.querySelectorAll('.hr > button, .hr > .dd > button')]
+          .filter((e) => getComputedStyle(e).display !== 'none')
+          .map((e) => {
+            const r = e.getBoundingClientRect();
+            return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+          }),
+        overlaps = actions.some((a, i) =>
+          actions
+            .slice(i + 1)
+            .some(
+              (b) =>
+                a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1
+            )
+        );
+      return {
+        documentFits: document.documentElement.scrollWidth <= innerWidth + 1,
+        headerFits:
+          document.querySelector('header').scrollWidth <= document.querySelector('header').clientWidth + 1,
+        actionsFit: actions.every((a) => a.left >= 0 && a.right <= innerWidth + 1),
+        actionsOverlap: overlaps,
+        zoomStepOverlap: (() => {
+          const zoom = rect('#zm'),
+            step = rect('#rn');
+          return (
+            zoom.left < step.right &&
+            zoom.right > step.left &&
+            zoom.top < step.bottom &&
+            zoom.bottom > step.top
+          );
+        })(),
+        drawingClear: rect('#dt').bottom <= rect('#bn').top + 1
+      };
+    });
+    eq(layout.documentFits, true, `editor overflows the screen at ${width}px`);
+    eq(layout.headerFits, true, `header overflows at ${width}px`);
+    eq(layout.actionsFit, true, `header controls are clipped at ${width}px`);
+    eq(layout.actionsOverlap, false, `header controls overlap at ${width}px`);
+    eq(layout.zoomStepOverlap, false, `zoom and step controls overlap at ${width}px`);
+    eq(layout.drawingClear, true, `drawing toolbar is covered by bottom nav at ${width}px`);
+  }
   await p.click('#bn [data-n=templates]');
   await p.waitForTimeout(300);
   ok(
@@ -966,6 +997,89 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
   await p.click('#pal button[data-k="AND"]');
   eq(await p.evaluate(() => LogicLab.parts().length), 1);
   eq(errs, []);
+  await m.close();
+});
+
+await test('touch long-press opens context menu only while holding the same canvas target', async () => {
+  const m = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true
+  });
+  const p = await m.newPage();
+  await p.goto(url);
+  await p.waitForFunction(() => window.LogicLab);
+  await p.click('#wn');
+  await p.evaluate(() => LogicLab.build({ parts: [{ id: 'A', type: 'IN' }] }));
+  const point = await p.evaluate(() => {
+    const n = LogicLab.exportProject().nodes[0],
+      { v, el } = LogicLabHost.view(),
+      r = el.getBoundingClientRect();
+    return {
+      x: r.left + v.x + (n.x + 30) * v.s,
+      y: r.top + v.y + (n.y + 22) * v.s
+    };
+  });
+  const runTouchSequence = (action) =>
+    p.evaluate(
+      async ({ point, action }) => {
+        const canvas = LogicLabHost.view().el,
+          wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+          send = (type, x = point.x, y = point.y) =>
+            canvas.dispatchEvent(
+              new PointerEvent(type, {
+                pointerId: 7,
+                pointerType: 'touch',
+                isPrimary: true,
+                button: 0,
+                buttons: type === 'pointerup' ? 0 : 1,
+                clientX: x,
+                clientY: y,
+                bubbles: true
+              })
+            );
+        canvas.setPointerCapture = () => {};
+        send('pointerdown');
+        if (action === 'tap') {
+          await wait(10);
+          send('pointerup');
+          await wait(40);
+          return document.querySelector('#cm').hidden;
+        }
+        if (action === 'hold') {
+          await wait(50);
+          const opened = !document.querySelector('#cm').hidden;
+          send('pointerup');
+          document.querySelector('#cm').hidden = true;
+          return opened;
+        }
+        await wait(10);
+        send('pointermove', point.x + 12, point.y);
+        await wait(40);
+        const cancelled = document.querySelector('#cm').hidden;
+        send('pointerup', point.x + 12, point.y);
+        return cancelled;
+      },
+      { point, action }
+    );
+
+  ok(await runTouchSequence('tap'), 'a quick tap should not open a context menu');
+  const nativeTouchMenu = await p.evaluate(({ x, y }) => {
+    const canvas = LogicLabHost.view().el,
+      event = new PointerEvent('contextmenu', {
+        pointerType: 'touch',
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true
+      });
+    canvas.dispatchEvent(event);
+    return { prevented: event.defaultPrevented, hidden: document.querySelector('#cm').hidden };
+  }, point);
+  ok(nativeTouchMenu.prevented, 'browser touch context menu is suppressed');
+  ok(nativeTouchMenu.hidden, 'touch context menu requires the long-press gesture');
+  ok(await runTouchSequence('hold'), 'holding for 30 ms opens the context menu');
+  ok(await runTouchSequence('move'), 'moving from the original place cancels the long-press');
   await m.close();
 });
 

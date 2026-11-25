@@ -2104,7 +2104,11 @@ footer {
   }
   .hr {
     order: 3;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    flex: 1 0 100%;
+    width: 100%;
+    gap: 4px;
     margin-left: 0;
   }
   .hr #undo,
@@ -2114,6 +2118,17 @@ footer {
   }
   .hr button {
     height: 36px;
+  }
+  .hr > button,
+  .hr > .dd {
+    min-width: 0;
+  }
+  .hr > button,
+  .hr > .dd > button {
+    width: 100%;
+    padding-right: 4px;
+    padding-left: 4px;
+    white-space: nowrap;
   }
   header .seg {
     order: 5;
@@ -2175,6 +2190,15 @@ footer {
     flex-wrap: nowrap;
     margin: 8px 8px 0;
     padding: 4px 8px;
+    scrollbar-width: none;
+  }
+  #dt::-webkit-scrollbar {
+    display: none;
+  }
+  #rn {
+    right: 10px;
+    left: auto;
+    transform: none;
   }
   #dt .mu {
     display: none;

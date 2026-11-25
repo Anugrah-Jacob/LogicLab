@@ -231,7 +231,6 @@
     tool = 'sel',
     win = 300,
     tab = 'tt',
-    lp = 0,
     PR = 10,
     exportNodesHidden = false;
   /** Main power. When false every output is 0 V and nothing is remembered (see powerOffTick). */
@@ -3747,9 +3746,23 @@
     if (e.code == 'Space') spacePan = false;
   });
   function bind(c) {
+    let touchHold = null;
+    const cancelTouchHold = () => {
+      if (!touchHold) return;
+      clearTimeout(touchHold.timer);
+      touchHold = null;
+    };
     const pos = (e) => {
       const r = c.getBoundingClientRect();
       return { x: (e.clientX - r.left - view.x) / view.s, y: (e.clientY - r.top - view.y) / view.s };
+    };
+    const contextTarget = (p) => {
+      const n = nodeAt(p);
+      if (n) return { kind: 'node', item: n };
+      const a = noteAt(p);
+      if (a) return { kind: 'note', item: a };
+      const w = wireAt(p);
+      return w ? { kind: 'wire', item: w } : { kind: 'canvas', item: c };
     };
     c.onpointerdown = (e) => {
       view = V[c === cv ? 0 : 1];
@@ -3765,7 +3778,7 @@
       if (ptr.size == 2) {
         drag = marq = pan = hd = null;
         pd = 0;
-        clearTimeout(lp);
+        cancelTouchHold();
         return;
       }
       if ((c === cv ? vw[0] : vw[1]) == 'bb') {
@@ -3837,11 +3850,29 @@
           return;
         }
       }
-      if (e.pointerType == 'touch') {
-        clearTimeout(lp);
-        lp = setTimeout(() => {
-          if ((drag && !drag.m) || !drag) ctx(e.clientX, e.clientY, p);
-        }, 550);
+      if (e.pointerType == 'touch' && (c === cv ? vw[0] : vw[1]) != 'bb') {
+        cancelTouchHold();
+        const hold = {
+          pointerId: e.pointerId,
+          x: e.clientX,
+          y: e.clientY,
+          target: contextTarget(p),
+          timer: 0
+        };
+        touchHold = hold;
+        hold.timer = setTimeout(() => {
+          const current = ptr.get(hold.pointerId);
+          if (!current || touchHold !== hold || RO || drag?.m || handleDrag || hd) return;
+          const distance = Math.hypot(current.clientX - hold.x, current.clientY - hold.y),
+            point = pos(current),
+            target = contextTarget(point);
+          if (distance > 8 || target.kind != hold.target.kind || target.item !== hold.target.item) {
+            cancelTouchHold();
+            return;
+          }
+          touchHold = null;
+          ctx(current.clientX, current.clientY, point);
+        }, 30);
       }
       if (selW) {
         const a = idm.get(selW.a),
@@ -3986,6 +4017,12 @@
         return;
       }
       const p = (mouse = pos(e));
+      if (touchHold && touchHold.pointerId == e.pointerId) {
+        const distance = Math.hypot(e.clientX - touchHold.x, e.clientY - touchHold.y),
+          target = contextTarget(p);
+        if (distance > 8 || target.kind != touchHold.target.kind || target.item !== touchHold.target.item)
+          cancelTouchHold();
+      }
       if (handleDrag) {
         moveHandle(p);
         return;
@@ -4009,7 +4046,7 @@
       if (drag) {
         if (Math.hypot(p.x - drag.px, p.y - drag.py) > 3) {
           drag.m = 1;
-          clearTimeout(lp);
+          cancelTouchHold();
         }
         if (drag.m) {
           drag.L.forEach(([n, x, y]) => {
@@ -4057,7 +4094,7 @@
       view = V[c === cv ? 0 : 1];
       ptr.delete(e.pointerId);
       releaseBtn(e.pointerId);
-      clearTimeout(lp);
+      cancelTouchHold();
       if (ptr.size < 2) pd = 0;
       const p = pos(e);
       if (dr) {
@@ -4088,7 +4125,7 @@
     c.onpointercancel = c.onpointerup;
     c.oncontextmenu = (e) => {
       e.preventDefault();
-      if (RO) return;
+      if (RO || e.pointerType == 'touch') return;
       view = V[c === cv ? 0 : 1];
       if ((c === cv ? vw[0] : vw[1]) != 'bb') ctx(e.clientX, e.clientY, pos(e));
     };
