@@ -34,9 +34,13 @@ const site = (arg ? arg.slice(7) : process.env.SITE_URL || current).replace(/\/+
 const today = new Date().toISOString().slice(0, 10);
 const version = crypto
   .createHash('sha1')
-  .update(['js/app.js', 'js/merge.js', 'js/collab.js', 'js/examples.js', 'js/config.js', 'js/ads.js', 'css/app.css'].map(read).join('\n'))
+  .update(
+    ['js/app.js', 'js/merge.js', 'js/collab.js', 'js/examples.js', 'js/config.js', 'js/ads.js', 'css/app.css']
+      .map(read)
+      .join('\n')
+  )
   .digest('hex')
-  .slice(0, 8);
+  .slice(0, 12);
 
 /* ---- learn pages ---- */
 const pages = EX.filter((e) => e.learn);
