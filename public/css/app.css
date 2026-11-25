@@ -288,6 +288,66 @@ main[data-n='2'] #pcb {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+#symdlg {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(80vh, 760px);
+  overflow: auto;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 20px;
+  color: var(--tx);
+  background: var(--pn);
+  box-shadow: 0 18px 60px #0005;
+}
+#symdlg::backdrop {
+  background: #10182888;
+}
+#symdlg form,
+#symdlg #symmap {
+  display: grid;
+  gap: 12px;
+}
+#symdlg h3 {
+  margin: 0;
+}
+#symdlg form > label,
+#symdlg .sym-counts label,
+#symdlg #symmap label {
+  display: grid;
+  gap: 5px;
+}
+#symdlg input:not([type='checkbox']),
+#symdlg select {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  color: var(--tx);
+  background: var(--bg);
+}
+#symdlg .sym-counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+#symdlg .sym-counts label:last-child {
+  grid-column: 1 / -1;
+}
+#symdlg .sym-favorite {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#symdlg .ex-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#symdlg .sym-map-title {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
   margin-top: 6px;
 }
 #cm[hidden] {
@@ -1016,6 +1076,23 @@ main {
 }
 #pal .pg button[hidden] {
   display: none;
+}
+#pal .pg .fav-item {
+  grid-column: 1 / -1;
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+}
+#pal .pg .fav-item button {
+  padding: 6px 4px;
+}
+#pal .pg .fav-item .fav-insert {
+  flex: 1;
+  min-width: 0;
+}
+#pal .pg .fav-item .fav-remove {
+  flex: 0 0 28px;
+  color: var(--mu);
 }
 #wrk {
   border-radius: 16px;

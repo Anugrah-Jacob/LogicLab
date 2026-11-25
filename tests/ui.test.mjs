@@ -143,6 +143,116 @@ await test('parts can be resized and rotated with direct selection handles', asy
   const node = await pg.evaluate(() => LogicLab.exportProject().nodes.find((p) => p.type === 'XOR'));
   ok(node.scale > 1, 'resize handle should resize the part');
 });
+await test('multiple selected parts share one transform frame', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'U2', type: 'NOT' }
+      ],
+      wires: [
+        { from: 'A.0', to: 'U1.0' },
+        { from: 'U1.0', to: 'U2.0' }
+      ]
+    })
+  );
+  const box = await pg.locator('#cv').boundingBox();
+  await pg.keyboard.press('Control+a');
+  const handle = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      h = (n) => (n.type === 'IN' ? 44 : 40),
+      x0 = Math.min(...d.nodes.map((n) => n.x)),
+      y0 = Math.min(...d.nodes.map((n) => n.y)),
+      x1 = Math.max(...d.nodes.map((n) => n.x + 76)),
+      view = LogicLabHost.view().v;
+    return {
+      x: view.x + ((x0 + x1) / 2) * view.s,
+      y: view.y + y0 * view.s - 30
+    };
+  });
+  await pg.mouse.move(box.x + handle.x, box.y + handle.y);
+  await pg.mouse.down();
+  await pg.mouse.move(box.x + handle.x + 25, box.y + handle.y - 30);
+  await pg.mouse.up();
+  const rotations = await pg.evaluate(() => LogicLab.exportProject().nodes.map((n) => n.rot));
+  ok(
+    rotations.every((angle) => angle > 0),
+    'the single selection rotation handle rotates all selected parts'
+  );
+});
+await test('Simplify creates a mapped symbol and Favorites insert independent copies', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'AND' },
+        { id: 'U2', type: 'NOT' },
+        { id: 'Y', type: 'LED' }
+      ],
+      wires: [
+        { from: 'A.0', to: 'U1.0' },
+        { from: 'U1.0', to: 'U2.0' },
+        { from: 'U2.0', to: 'Y.0' }
+      ]
+    })
+  );
+  await pg.keyboard.press('Control+a');
+  const box = await pg.locator('#cv').boundingBox();
+  const point = await pg.evaluate(() => {
+    const n = LogicLab.exportProject().nodes.find((item) => item.name === 'A'),
+      v = LogicLabHost.view().v;
+    return { x: v.x + (n.x + 20) * v.s, y: v.y + (n.y + 22) * v.s };
+  });
+  await pg.mouse.click(box.x + point.x, box.y + point.y, { button: 'right' });
+  await pg.locator('#cm button').filter({ hasText: 'Simplify selected circuit' }).click();
+  await pg.fill('#symname', 'Tiny controller');
+  await pg.locator('#symmap select').nth(0).selectOption({ label: 'U1 · Input 1' });
+  await pg.locator('#symmap select').nth(1).selectOption({ label: 'U2 · Output 1' });
+  await pg.click('#symcreate');
+  const symbol = await pg.evaluate(() => LogicLab.exportProject().notes.find((n) => n.t === 'symbol'));
+  ok(symbol, 'the selected circuit should have a symbol overlay');
+  eq(symbol.s, 'Tiny controller');
+  eq(symbol.inputMap.length, 1);
+  eq(symbol.outputMap.length, 1);
+  await pg.evaluate(() => {
+    LogicLab.setInput('A', 1);
+    LogicLab.step(2);
+  });
+  eq(
+    await pg.evaluate(() => LogicLab.outputs().Y),
+    1,
+    'the overlaid symbol keeps the original circuit simulation'
+  );
+  eq(await pg.locator('#pal .fav-insert').count(), 1, 'the symbol is saved in Favorites');
+  const symbolCenter = await pg.evaluate(() => {
+    const note = LogicLab.exportProject().notes.find((n) => n.t === 'symbol'),
+      v = LogicLabHost.view().v;
+    return {
+      x: v.x + ((note.x0 + note.x1) / 2) * v.s,
+      y: v.y + ((note.y0 + note.y1) / 2) * v.s
+    };
+  });
+  await pg.mouse.click(box.x + symbolCenter.x, box.y + symbolCenter.y, { button: 'right' });
+  await pg.locator('#cm button').filter({ hasText: 'Save symbol to Favorites' }).click();
+  eq(await pg.locator('#pal .fav-insert').count(), 1, 'context save updates the existing favorite by name');
+  await pg.locator('#pal .fav-insert').click();
+  const doc = await pg.evaluate(() => LogicLab.exportProject());
+  eq(doc.nodes.length, 8, 'favorite insertion clones the internal parts');
+  eq(doc.wires.length, 6, 'favorite insertion clones internal wiring');
+  eq(doc.notes.filter((n) => n.t === 'symbol').length, 2, 'favorite insertion includes the symbol overlay');
+  eq(doc.groups.length, 2, 'each symbol and its circuit are grouped');
+});
+await test('palette gate icons keep a high-contrast outline', async () => {
+  await pg.evaluate(() => LogicLab.load(''));
+  const contrast = await pg.locator('#pal button[data-k="AND"] canvas').evaluate((canvas) => {
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    let dark = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i + 3] && data[i] < 100 && data[i + 2] < 140) dark++;
+    return dark;
+  });
+  ok(contrast > 20, 'gate icon should have visible dark outline pixels');
+});
 await test('wire context menu supports adding a saved routing bend', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
   const box = await pg.locator('#cv').boundingBox();

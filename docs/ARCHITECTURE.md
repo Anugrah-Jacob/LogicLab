@@ -22,11 +22,15 @@ browser                                         Cloudflare Pages
 node  { id, type, x, y, name, nin, per, trig, v, o[], q, r[], pc, cnt, scale, rot, key? }
 wire  { a, ap, b, bp, bends?, mode? }  // output pin ap of node a -> input pin bp of node b
 group { id, name, ids[], nids[] }   // node ids and drawing ids
-note  { id, t, l, c, w, ... }       // a drawing: pen, line, arrow, rect, ell, text; l = layer id
+note  { id, t, l, c, w, ... }       // a drawing or symbol; l = layer id
 ```
 
 `DEF` lists the part types with their pin names. IN/CLK are sources, LED/METER are sinks, AND/OR/NAND/NOR/XOR/XNOR/NOT/BUF
 are gates, D/T/JK are flip-flops, SIPO/PISO are registers. `o[]` holds the output pin values.
+An abstract circuit symbol is a `note` with `t: "symbol"`, a name, member node ids, and input/output pin maps to internal
+node pins. It visually covers the selected circuit while the mapped symbol ports continue to route wires to the original
+simulation nodes. Symbol favorites are stored per local LogicLab account in browser storage and reinsert their parts,
+internal wires, symbol overlay, and mappings with fresh ids.
 
 ## Simulation (`step`, `comb`, `settle`, `rc`, `tick`)
 

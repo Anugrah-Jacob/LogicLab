@@ -116,7 +116,7 @@
         }
       ]
     </script>
-    <link rel="stylesheet" href="css/app.css?v=e33d378b" />
+    <link rel="stylesheet" href="css/app.css?v=4183e3ca" />
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
@@ -432,6 +432,29 @@
         </div>
       </form>
     </dialog>
+    <dialog id="symdlg">
+      <form method="dialog" id="symform">
+        <h3>Simplify selected circuit</h3>
+        <label>Symbol name <input id="symname" maxlength="40" required /></label>
+        <div class="sym-counts">
+          <label>Input pins <input id="symin" type="number" min="0" max="16" value="0" /></label>
+          <label>Output pins <input id="symout" type="number" min="0" max="16" value="1" /></label>
+          <label
+            >Pin arrangement
+            <select id="symlayout">
+              <option value="horizontal">Inputs left · outputs right</option>
+              <option value="vertical">Inputs top · outputs bottom</option>
+            </select>
+          </label>
+        </div>
+        <div id="symmap"></div>
+        <label class="sym-favorite"><input id="symfav" type="checkbox" checked /> Save this symbol in Favorites</label>
+        <div class="ex-actions">
+          <button value="cancel">Cancel</button>
+          <button id="symcreate" value="create">Create symbol</button>
+        </div>
+      </form>
+    </dialog>
     <div id="wl">
       <aside>
         <div class="lgo">
@@ -713,11 +736,11 @@
       ><button data-n="ai" class="fab" aria-label="LogicLab AI">✦</button><button data-n="wave"><span>∿</span>Waveform</button
       ><button data-n="side"><span>⋯</span>More</button>
     </nav>
-    <script defer src="js/config.js?v=e33d378b"></script>
-    <script defer src="js/examples.js?v=e33d378b"></script>
-    <script defer src="js/ads.js?v=e33d378b"></script>
-    <script defer src="js/app.js?v=e33d378b"></script>
-    <script defer src="js/merge.js?v=e33d378b"></script>
-    <script defer src="js/collab.js?v=e33d378b"></script>
+    <script defer src="js/config.js?v=4183e3ca"></script>
+    <script defer src="js/examples.js?v=4183e3ca"></script>
+    <script defer src="js/ads.js?v=4183e3ca"></script>
+    <script defer src="js/app.js?v=4183e3ca"></script>
+    <script defer src="js/merge.js?v=4183e3ca"></script>
+    <script defer src="js/collab.js?v=4183e3ca"></script>
   </body>
 </html>

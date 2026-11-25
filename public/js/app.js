@@ -111,6 +111,38 @@
               ? 40
               : Math.max(44, Math.max(nI(n), nO(n)) * 24 + 12);
   let drawingNode = null;
+  function symbolPort(note, input, i) {
+    const list = input ? note.inputMap || [] : note.outputMap || [],
+      [x0, y0, x1, y1] = rawNBox(note),
+      vertical = note.layout == 'vertical',
+      count = list.length;
+    if (!count) return null;
+    const point = input
+      ? vertical
+        ? { x: x0 + ((i + 1) * (x1 - x0)) / (count + 1), y: y0 }
+        : { x: x0, y: y0 + ((i + 1) * (y1 - y0)) / (count + 1) }
+      : vertical
+        ? { x: x0 + ((i + 1) * (x1 - x0)) / (count + 1), y: y1 }
+        : { x: x1, y: y0 + ((i + 1) * (y1 - y0)) / (count + 1) };
+    const angle = ((note.rot || 0) * Math.PI) / 180,
+      cx = (x0 + x1) / 2,
+      cy = (y0 + y1) / 2,
+      dx = point.x - cx,
+      dy = point.y - cy;
+    return {
+      x: cx + dx * Math.cos(angle) - dy * Math.sin(angle),
+      y: cy + dx * Math.sin(angle) + dy * Math.cos(angle)
+    };
+  }
+  function symbolMappedPoint(n, pin, output) {
+    const field = output ? 'outputMap' : 'inputMap';
+    for (const note of notes) {
+      if (note.t != 'symbol') continue;
+      const i = (note[field] || []).findIndex((m) => m.node == n.id && m.pin == pin);
+      if (i >= 0) return symbolPort(note, !output, i);
+    }
+    return null;
+  }
   const nodePoint = (n, p) => {
       if (drawingNode === n) return p;
       const s = Math.max(0.25, Math.min(4, Number(n.scale) || 1)),
@@ -121,8 +153,10 @@
         dy = (p.y - cy) * s;
       return { x: cx + dx * Math.cos(a) - dy * Math.sin(a), y: cy + dx * Math.sin(a) + dy * Math.cos(a) };
     },
-    ip = (n, i) => nodePoint(n, { x: n.x, y: n.y + (hh(n) * (i + 1)) / (nI(n) + 1) }),
-    op = (n, i) => nodePoint(n, { x: n.x + W, y: n.y + (hh(n) * (i + 1)) / (nO(n) + 1) });
+    ip = (n, i) =>
+      symbolMappedPoint(n, i, 0) || nodePoint(n, { x: n.x, y: n.y + (hh(n) * (i + 1)) / (nI(n) + 1) }),
+    op = (n, i) =>
+      symbolMappedPoint(n, i, 1) || nodePoint(n, { x: n.x + W, y: n.y + (hh(n) * (i + 1)) / (nO(n) + 1) });
   const ICN = {
     AND2: '74LS08',
     OR2: '74LS32',
@@ -729,12 +763,20 @@
     }
     if (w === selW) {
       (R.H || [R.h]).forEach((h) => {
-        c.beginPath();
-        c.arc(h.x, h.y, 6, 0, Math.PI * 2);
-        c.fillStyle = cs('--ac');
-        c.fill();
+        const r = 7 / view.s;
+        c.fillStyle = cs('--pn');
+        c.fillRect(h.x - r, h.y - r, r * 2, r * 2);
         c.strokeStyle = '#fff';
-        c.lineWidth = 2;
+        c.lineWidth = 2.5 / view.s;
+        c.strokeRect(h.x - r, h.y - r, r * 2, r * 2);
+        c.strokeStyle = cs('--ac');
+        c.lineWidth = 1.5 / view.s;
+        c.strokeRect(h.x - r, h.y - r, r * 2, r * 2);
+        c.beginPath();
+        c.moveTo(h.x - r * 0.55, h.y);
+        c.lineTo(h.x + r * 0.55, h.y);
+        c.moveTo(h.x, h.y - r * 0.55);
+        c.lineTo(h.x, h.y + r * 0.55);
         c.stroke();
       });
     }
@@ -874,45 +916,92 @@
     ...[...sel].map((n) => ({ kind: 'node', item: n })),
     ...[...selN].map((n) => ({ kind: 'note', item: n }))
   ];
+  function selectionBounds(items = selectedObjects()) {
+    const bounds = items.map(({ kind, item }) => (kind == 'node' ? nodeBounds(item) : nBox(item)));
+    if (!bounds.length) return null;
+    return [
+      Math.min(...bounds.map((b) => b[0])),
+      Math.min(...bounds.map((b) => b[1])),
+      Math.max(...bounds.map((b) => b[2])),
+      Math.max(...bounds.map((b) => b[3]))
+    ];
+  }
+  function drawSelectionFrame(c, [x0, y0, x1, y1]) {
+    const r = 5 / view.s,
+      cx = (x0 + x1) / 2,
+      pts = [
+        [x0, y0],
+        [cx, y0],
+        [x1, y0],
+        [x1, (y0 + y1) / 2],
+        [x1, y1],
+        [cx, y1],
+        [x0, y1],
+        [x0, (y0 + y1) / 2]
+      ];
+    c.save();
+    c.lineWidth = 1.5 / view.s;
+    c.strokeStyle = '#168cff';
+    c.fillStyle = '#fff';
+    c.setLineDash([]);
+    c.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    pts.forEach(([x, y]) => {
+      c.fillRect(x - r, y - r, r * 2, r * 2);
+      c.strokeRect(x - r, y - r, r * 2, r * 2);
+    });
+    c.beginPath();
+    c.moveTo(cx, y0);
+    c.lineTo(cx, y0 - 26 / view.s);
+    c.stroke();
+    c.beginPath();
+    c.arc(cx, y0 - 30 / view.s, 5 / view.s, 0, Math.PI * 2);
+    c.fill();
+    c.stroke();
+    c.restore();
+  }
   function drawSelectionHandles(c) {
     const items = selectedObjects();
+    if (items.length > 1) {
+      drawSelectionFrame(c, selectionBounds(items));
+      return;
+    }
     items.forEach(({ kind, item }) => {
-      const b = kind == 'node' ? nodeBounds(item) : nBox(item),
-        [x0, y0, x1, y1] = b,
-        r = 5 / view.s,
-        pts = [
-          ['nw', x0, y0],
-          ['n', (x0 + x1) / 2, y0],
-          ['ne', x1, y0],
-          ['e', x1, (y0 + y1) / 2],
-          ['se', x1, y1],
-          ['s', (x0 + x1) / 2, y1],
-          ['sw', x0, y1],
-          ['w', x0, (y0 + y1) / 2]
-        ];
-      c.save();
-      c.lineWidth = 1.5 / view.s;
-      c.strokeStyle = '#168cff';
-      c.fillStyle = '#fff';
-      c.setLineDash([]);
-      c.strokeRect(x0, y0, x1 - x0, y1 - y0);
-      pts.forEach(([, x, y]) => {
-        c.fillRect(x - r, y - r, r * 2, r * 2);
-        c.strokeRect(x - r, y - r, r * 2, r * 2);
-      });
-      c.beginPath();
-      c.moveTo((x0 + x1) / 2, y0);
-      c.lineTo((x0 + x1) / 2, y0 - 26 / view.s);
-      c.stroke();
-      c.beginPath();
-      c.arc((x0 + x1) / 2, y0 - 30 / view.s, 5 / view.s, 0, Math.PI * 2);
-      c.fill();
-      c.stroke();
-      c.restore();
+      const b = kind == 'node' ? nodeBounds(item) : nBox(item);
+      drawSelectionFrame(c, b);
     });
   }
   function handleAt(p) {
-    for (const { kind, item } of selectedObjects()) {
+    const items = selectedObjects();
+    if (items.length > 1) {
+      const b = selectionBounds(items),
+        [x0, y0, x1, y1] = b,
+        hit = 10 / view.s,
+        cx = (x0 + x1) / 2,
+        cy = (y0 + y1) / 2,
+        rot = { x: cx, y: y0 - 30 / view.s };
+      if (Math.hypot(p.x - rot.x, p.y - rot.y) <= hit)
+        return {
+          kind: 'selection',
+          op: 'rotate',
+          bounds: b,
+          center: { x: cx, y: cy },
+          angle: Math.atan2(p.y - cy, p.x - cx)
+        };
+      const handles = [
+        ['nw', x0, y0],
+        ['n', cx, y0],
+        ['ne', x1, y0],
+        ['e', x1, cy],
+        ['se', x1, y1],
+        ['s', cx, y1],
+        ['sw', x0, y1],
+        ['w', x0, cy]
+      ];
+      const h = handles.find(([, x, y]) => Math.hypot(p.x - x, p.y - y) <= hit);
+      if (h) return { kind: 'selection', op: 'resize', handle: h[0], bounds: b };
+      return null;
+    }
+    for (const { kind, item } of items) {
       const b = kind == 'node' ? nodeBounds(item) : nBox(item),
         [x0, y0, x1, y1] = b,
         hit = 10 / view.s,
@@ -939,6 +1028,115 @@
   function moveHandle(p) {
     const h = handleDrag;
     if (!h) return;
+    if (h.kind == 'selection') {
+      const [x0, y0, x1, y1] = h.bounds,
+        original = h.original,
+        cx = h.center.x,
+        cy = h.center.y;
+      if (h.op == 'rotate') {
+        const angle = Math.atan2(p.y - cy, p.x - cx),
+          delta = angle - h.angle,
+          cos = Math.cos(delta),
+          sin = Math.sin(delta),
+          turn = (x, y) => ({
+            x: cx + (x - cx) * cos - (y - cy) * sin,
+            y: cy + (x - cx) * sin + (y - cy) * cos
+          });
+        original.nodes.forEach((saved) => {
+          const n = idm.get(saved.id);
+          if (!n) return;
+          const q = turn(saved.x + W / 2, saved.y + hh(n) / 2);
+          n.x = q.x - W / 2;
+          n.y = q.y - hh(n) / 2;
+          n.rot = (saved.rot || 0) + (delta * 180) / Math.PI;
+        });
+        original.notes.forEach((saved) => {
+          const note = notes.find((a) => a.id == saved.id);
+          if (!note) return;
+          const b = rawNBox(saved),
+            q = turn((b[0] + b[2]) / 2, (b[1] + b[3]) / 2),
+            dx = q.x - (b[0] + b[2]) / 2,
+            dy = q.y - (b[1] + b[3]) / 2;
+          if (saved.p) note.p = saved.p.map(([x, y]) => [x + dx, y + dy]);
+          else {
+            note.x0 = saved.x0 + dx;
+            note.x1 = saved.x1 + dx;
+            note.y0 = saved.y0 + dy;
+            note.y1 = saved.y1 + dy;
+          }
+          note.rot = (saved.rot || 0) + (delta * 180) / Math.PI;
+        });
+        original.wires.forEach(({ id, route }) => {
+          const wire = wires[id];
+          if (!wire) return;
+          if (route.bends)
+            wire.bends = route.bends.map((v) => {
+              const point = turn(v.x, v.y);
+              return { x: point.x, y: point.y };
+            });
+          if (route.via) wire.via = turn(route.via.x, route.via.y);
+          if (route.mx != null) wire.mx = turn(route.mx, route.my ?? cy).x;
+          if (route.my != null) wire.my = turn(route.mx ?? cx, route.my).y;
+        });
+        return;
+      }
+      const dx = p.x - h.start.x,
+        dy = p.y - h.start.y,
+        sx = Math.max(
+          0.1,
+          Math.abs(x1 - x0 + (h.handle.includes('e') ? dx : h.handle.includes('w') ? -dx : 0)) /
+            Math.max(1, x1 - x0)
+        ),
+        sy = Math.max(
+          0.1,
+          Math.abs(y1 - y0 + (h.handle.includes('s') ? dy : h.handle.includes('n') ? -dy : 0)) /
+            Math.max(1, y1 - y0)
+        ),
+        ox = h.handle.includes('w') ? x1 + dx : x0,
+        oy = h.handle.includes('n') ? y1 + dy : y0,
+        point = (x, y) => ({
+          x: ox + (x - (h.handle.includes('w') ? x1 : x0)) * sx,
+          y: oy + (y - (h.handle.includes('n') ? y1 : y0)) * sy
+        });
+      original.nodes.forEach((saved) => {
+        const n = idm.get(saved.id);
+        if (!n) return;
+        const q = point(saved.x + W / 2, saved.y + hh(n) / 2);
+        n.x = q.x - W / 2;
+        n.y = q.y - hh(n) / 2;
+        n.scale = Math.max(0.25, Math.min(4, (saved.scale || 1) * Math.sqrt(sx * sy)));
+      });
+      original.notes.forEach((saved) => {
+        const note = notes.find((a) => a.id == saved.id);
+        if (!note) return;
+        if (saved.p)
+          note.p = saved.p.map(([x, y]) => {
+            const q = point(x, y);
+            return [q.x, q.y];
+          });
+        else {
+          const a = point(saved.x0, saved.y0),
+            b = point(saved.x1, saved.y1);
+          note.x0 = a.x;
+          note.y0 = a.y;
+          note.x1 = b.x;
+          note.y1 = b.y;
+        }
+      });
+      original.wires.forEach(({ id, route }) => {
+        const wire = wires[id];
+        if (!wire) return;
+        if (route.bends)
+          wire.bends = route.bends.map((v) => {
+            const q = point(v.x, v.y);
+            return { x: q.x, y: q.y };
+          });
+        if (route.via) wire.via = point(route.via.x, route.via.y);
+        if (route.mx != null) wire.mx = point(route.mx, h.start.y).x;
+        if (route.my != null) wire.my = point(h.start.x, route.my).y;
+      });
+      return;
+    }
     if (h.op == 'rotate') {
       const angle = Math.atan2(p.y - h.center.y, p.x - h.center.x);
       h.item.rot = (h.rot + ((angle - h.angle) * 180) / Math.PI + 360) % 360;
@@ -3013,6 +3211,21 @@
     }
   }
   function pinHit(p) {
+    for (let j = notes.length - 1; j >= 0; j--) {
+      const note = notes[j];
+      if (note.t != 'symbol') continue;
+      for (const [input, list] of [
+        [true, note.inputMap || []],
+        [false, note.outputMap || []]
+      ]) {
+        for (let i = 0; i < list.length; i++) {
+          const q = symbolPort(note, input, i);
+          if (Math.hypot(q.x - p.x, q.y - p.y) >= PR) continue;
+          const n = idm.get(list[i].node);
+          if (n) return { n, i: list[i].pin, out: Number(!input) };
+        }
+      }
+    }
     for (const n of nodes) {
       for (let i = 0; i < nO(n); i++) {
         const q = op(n, i);
@@ -3041,9 +3254,207 @@
     m.style.left = Math.max(4, Math.min(x - r.left, r.width - 170)) + 'px';
     m.style.top = Math.max(4, Math.min(y - r.top, r.height - items.length * 34 - 8)) + 'px';
   }
+  function getFavorites() {
+    try {
+      const saved = JSON.parse(lsG(kk('favorites')) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch (e) {
+      toast('Saved symbols could not be read from browser storage.', 'warn');
+      return [];
+    }
+  }
+  function saveFavorite(note) {
+    const members = new Set((note.members || []).filter((id) => idm.has(id))),
+      favorite = {
+        name: note.s || 'Symbol',
+        nodes: nodes.filter((n) => members.has(n.id)).map((n) => JSON.parse(JSON.stringify(n))),
+        wires: wires
+          .filter((w) => members.has(w.a) && members.has(w.b))
+          .map((w) => JSON.parse(JSON.stringify(w))),
+        symbol: JSON.parse(JSON.stringify(note))
+      };
+    if (!favorite.nodes.length) return toast('This symbol has no circuit parts to save.', 'warn');
+    const favorites = getFavorites().filter((f) => f.name != favorite.name);
+    favorites.push(favorite);
+    if (!lsS(kk('favorites'), JSON.stringify(favorites)))
+      return toast('Could not save this symbol in browser storage.', 'warn');
+    palBuild();
+    toast('Saved "' + favorite.name + '" to Favorites.', 'success');
+  }
+  function removeFavorite(name) {
+    if (!confirm('Remove "' + name + '" from Favorites?')) return;
+    if (!lsS(kk('favorites'), JSON.stringify(getFavorites().filter((f) => f.name != name))))
+      return toast('Could not update browser storage.', 'warn');
+    palBuild();
+  }
+  function insertFavorite(favorite) {
+    view = V[0];
+    const bounds = selectionBounds([
+        ...favorite.nodes.map((item) => ({ kind: 'node', item })),
+        { kind: 'note', item: favorite.symbol }
+      ]),
+      dx = (-view.x + cv.clientWidth / 2) / view.s - (bounds[0] + bounds[2]) / 2,
+      dy = (-view.y + cv.clientHeight / 2) / view.s - (bounds[1] + bounds[3]) / 2,
+      map = new Map();
+    favorite.nodes.forEach((saved) => {
+      const n = add(saved.type, saved.x + dx, saved.y + dy);
+      Object.assign(n, JSON.parse(JSON.stringify(saved)), {
+        id: n.id,
+        x: saved.x + dx,
+        y: saved.y + dy
+      });
+      map.set(saved.id, n);
+    });
+    favorite.wires.forEach((saved) => {
+      const a = map.get(saved.a),
+        b = map.get(saved.b);
+      if (!a || !b) return;
+      link(a, saved.ap, b, saved.bp);
+      const copy = wires.find((w) => w.a == a.id && w.ap == saved.ap && w.b == b.id && w.bp == saved.bp);
+      Object.assign(copy, JSON.parse(JSON.stringify(saved)), {
+        a: a.id,
+        b: b.id,
+        bends: saved.bends && saved.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+        via: saved.via && { x: saved.via.x + dx, y: saved.via.y + dy },
+        mx: saved.mx == null ? saved.mx : saved.mx + dx,
+        my: saved.my == null ? saved.my : saved.my + dy
+      });
+    });
+    const symbol = JSON.parse(JSON.stringify(favorite.symbol)),
+      offset = (v, d) => (v == null ? v : v + d);
+    symbol.id = uid++;
+    symbol.x0 = offset(symbol.x0, dx);
+    symbol.x1 = offset(symbol.x1, dx);
+    symbol.y0 = offset(symbol.y0, dy);
+    symbol.y1 = offset(symbol.y1, dy);
+    symbol.members = (symbol.members || []).map((id) => map.get(id)?.id).filter(Boolean);
+    ['inputMap', 'outputMap'].forEach((key) => {
+      symbol[key] = (symbol[key] || [])
+        .map((m) => ({ ...m, node: map.get(m.node)?.id }))
+        .filter((m) => m.node);
+    });
+    notes.push(symbol);
+    const ids = [...map.values()].map((n) => n.id);
+    groups.push({ id: uid++, name: symbol.s, ids, nids: [symbol.id] });
+    sel = new Set(map.values());
+    selN = new Set([symbol]);
+    reindex();
+    changed();
+    document.body.classList.remove('sh-pal');
+  }
+  let simplifyIds = [];
+  function simplifyOptions(ids) {
+    return ids.map((id) => idm.get(id)).filter(Boolean);
+  }
+  function updateSymbolMappingForm() {
+    const nodesForSymbol = simplifyOptions(simplifyIds),
+      inputOptions = nodesForSymbol.flatMap((n) =>
+        Array.from({ length: nI(n) }, (_, pin) => ({
+          value: n.id + ':' + pin,
+          label: n.name + ' · ' + (DEF[n.type].ins[pin] || 'Input ' + (pin + 1))
+        }))
+      ),
+      outputOptions = nodesForSymbol.flatMap((n) =>
+        Array.from({ length: nO(n) }, (_, pin) => ({
+          value: n.id + ':' + pin,
+          label: n.name + ' · ' + (DEF[n.type].outs[pin] || 'Output ' + (pin + 1))
+        }))
+      ),
+      inputs = $('#symin'),
+      outputs = $('#symout');
+    inputs.max = inputOptions.length;
+    outputs.max = outputOptions.length;
+    inputs.value = Math.min(Number(inputs.value), inputOptions.length);
+    outputs.value = Math.min(Number(outputs.value), outputOptions.length);
+    const map = $('#symmap');
+    map.innerHTML = '';
+    const addSelects = (count, label, options) => {
+      if (!count) return;
+      const title = document.createElement('p');
+      title.className = 'sym-map-title';
+      title.textContent = label;
+      map.append(title);
+      for (let i = 0; i < count; i++) {
+        const row = document.createElement('label'),
+          select = document.createElement('select');
+        row.append(document.createTextNode(label.slice(0, -1) + ' ' + (i + 1) + ' maps to '));
+        select.required = true;
+        select.dataset.pin = String(i);
+        options.forEach((option, j) => {
+          const item = document.createElement('option');
+          item.value = option.value;
+          item.textContent = option.label;
+          select.append(item);
+          if (j === i) select.value = option.value;
+        });
+        row.append(select);
+        map.append(row);
+      }
+    };
+    addSelects(Number(inputs.value), 'Input pins', inputOptions);
+    addSelects(Number(outputs.value), 'Output pins', outputOptions);
+  }
+  function openSimplifyDialog() {
+    simplifyIds = [...sel].map((n) => n.id);
+    if (simplifyIds.length < 2) return toast('Select at least two circuit parts before simplifying.', 'info');
+    const nodesForSymbol = simplifyOptions(simplifyIds),
+      inputCount = nodesForSymbol.reduce((sum, n) => sum + nI(n), 0),
+      outputCount = nodesForSymbol.reduce((sum, n) => sum + nO(n), 0);
+    if (!inputCount && !outputCount) return toast('The selected parts have no mappable pins.', 'warn');
+    $('#symname').value = 'Custom circuit';
+    $('#symin').value = Math.min(1, inputCount);
+    $('#symout').value = Math.min(1, outputCount);
+    updateSymbolMappingForm();
+    $('#symdlg').showModal();
+  }
+  function createSymbolFromDialog() {
+    const selected = simplifyOptions(simplifyIds),
+      selectedIds = new Set(selected.map((n) => n.id)),
+      bounds = selectionBounds(selected.map((item) => ({ kind: 'node', item })));
+    if (!selected.length || selected.length < 2)
+      return toast('Select at least two circuit parts before simplifying.', 'warn');
+    const allSelects = [...$('#symmap').querySelectorAll('select')],
+      inputs = Number($('#symin').value),
+      outputs = Number($('#symout').value);
+    if (allSelects.length != inputs + outputs || (!inputs && !outputs))
+      return toast('Map every symbol pin to an internal circuit pin.', 'warn');
+    const mapValues = allSelects.map((select) => {
+      const [node, pin] = select.value.split(':').map(Number);
+      return { node, pin };
+    });
+    const inputMap = mapValues.slice(0, inputs),
+      outputMap = mapValues.slice(inputs);
+    const distinctPins = (pins) => new Set(pins.map((m) => m.node + ':' + m.pin)).size == pins.length;
+    if (!distinctPins(inputMap) || !distinctPins(outputMap))
+      return toast('Map each symbol pin to a different internal pin.', 'warn');
+    const [x0, y0, x1, y1] = bounds,
+      note = {
+        id: uid++,
+        t: 'symbol',
+        l: actL,
+        s: $('#symname').value.trim() || 'Symbol',
+        x0: x0 - 20,
+        y0: y0 - 20,
+        x1: x1 + 20,
+        y1: y1 + 20,
+        w: 2.5,
+        layout: $('#symlayout').value,
+        members: [...selectedIds],
+        inputMap: inputMap.map((m) => ({ ...m, node: m.node })),
+        outputMap: outputMap.map((m) => ({ ...m, node: m.node }))
+      };
+    notes.push(note);
+    groups.push({ id: uid++, name: note.s, ids: [...selectedIds], nids: [note.id] });
+    sel = new Set(selected);
+    selN = new Set([note]);
+    reindex();
+    changed();
+    if ($('#symfav').checked) saveFavorite(note);
+  }
   function ctx(x, y, p) {
     const n = nodeAt(p),
-      w = n ? null : wireAt(p);
+      a = n ? null : noteAt(p),
+      w = n || a ? null : wireAt(p);
     if (n) {
       if (!sel.has(n)) {
         const gp = pickSet(n, 0, 0);
@@ -3076,7 +3487,20 @@
               changed();
             }
           ],
-          ...(sel.size > 1 ? [['Auto arrange selected wires', autoRouteSelectedWires]] : []),
+          ...(sel.size > 1
+            ? [
+                ['Auto arrange selected wires', autoRouteSelectedWires],
+                ['Simplify selected circuit', openSimplifyDialog]
+              ]
+            : []),
+          ...(Array.from(selN).some((item) => item.t == 'symbol')
+            ? [
+                [
+                  'Save symbol to Favorites',
+                  () => [...selN].filter((item) => item.t == 'symbol').forEach(saveFavorite)
+                ]
+              ]
+            : []),
           ['Group', group],
           ['Ungroup', ungroup],
           ['Delete', delSel],
@@ -3164,6 +3588,7 @@
           changed();
         }
         menu(x, y, [
+          ...(a.t == 'symbol' ? [['Save symbol to Favorites', () => saveFavorite(a)]] : []),
           ...(a.t == 'text'
             ? [
                 [
@@ -3324,12 +3749,38 @@
       if (tool == 'sel') {
         const h = handleAt(p);
         if (h) {
+          const items = h.kind == 'selection' ? selectedObjects() : [{ kind: h.kind, item: h.item }],
+            bounds = h.kind == 'selection' ? h.bounds : selectionBounds(items),
+            ids = new Set(items.filter((q) => q.kind == 'node').map((q) => q.item.id));
           handleDrag = {
             ...h,
             start: p,
-            scale: h.item.scale || 1,
-            rot: h.item.rot || 0,
-            original: JSON.parse(JSON.stringify(h.item))
+            center: h.center || { x: (bounds[0] + bounds[2]) / 2, y: (bounds[1] + bounds[3]) / 2 },
+            angle:
+              h.angle ?? Math.atan2(p.y - (bounds[1] + bounds[3]) / 2, p.x - (bounds[0] + bounds[2]) / 2),
+            bounds,
+            scale: h.item ? h.item.scale || 1 : 1,
+            rot: h.item ? h.item.rot || 0 : 0,
+            original:
+              h.kind == 'selection'
+                ? {
+                    nodes: items
+                      .filter((q) => q.kind == 'node')
+                      .map(({ item }) => JSON.parse(JSON.stringify(item))),
+                    notes: items
+                      .filter((q) => q.kind == 'note')
+                      .map(({ item }) => JSON.parse(JSON.stringify(item))),
+                    wires: wires
+                      .filter(
+                        (w) =>
+                          ids.has(w.a) && ids.has(w.b) && (w.bends || w.via || w.mx != null || w.my != null)
+                      )
+                      .map((w) => ({
+                        id: wires.indexOf(w),
+                        route: JSON.parse(JSON.stringify({ bends: w.bends, via: w.via, mx: w.mx, my: w.my }))
+                      }))
+                  }
+                : JSON.parse(JSON.stringify(h.item))
           };
           if (h.kind == 'node') {
             const b = nodeBounds(h.item);
@@ -3651,8 +4102,13 @@
     k.style.cssText = 'width:36px;height:27px';
     const c = k.getContext('2d');
     c.scale(2, 2);
-    c.lineWidth = 1.6;
-    c.strokeStyle = c.fillStyle = cs('--tx');
+    const hex = cs('--pn').replace('#', ''),
+      pane = (hex.length == 3 ? [...hex].map((v) => v + v) : hex.match(/../g) || ['ff', 'ff', 'ff'])
+        .slice(0, 3)
+        .map((v) => parseInt(v, 16)),
+      brightness = (pane[0] * 299 + pane[1] * 587 + pane[2] * 114) / 1000;
+    c.lineWidth = 2.4;
+    c.strokeStyle = c.fillStyle = brightness > 140 ? '#17365f' : '#c6ddff';
     c.lineJoin = 'round';
     if (MULTI.has(t) || t == 'NOT' || t == 'BUF') {
       c.fillStyle = cs('--pn');
@@ -4659,7 +5115,7 @@
     if (a.t == 'line' || a.t == 'arrow') return segD(p, { x: a.x0, y: a.y0 }, { x: a.x1, y: a.y1 }) < t;
     const b = rawNBox(a),
       i = p.x >= b[0] - t && p.x <= b[2] + t && p.y >= b[1] - t && p.y <= b[3] + t;
-    return a.t == 'text' || a.fillOn
+    return a.t == 'symbol' || a.t == 'text' || a.fillOn
       ? i
       : i && !(p.x > b[0] + t && p.x < b[2] - t && p.y > b[1] + t && p.y < b[3] - t);
   }
@@ -4778,6 +5234,42 @@
           x.textAlign = 'left';
           x.textBaseline = 'top';
           x.fillText(a.s, a.x0, a.y0);
+        } else if (a.t == 'symbol') {
+          const b = rawNBox(a),
+            w = b[2] - b[0],
+            h = b[3] - b[1];
+          x.fillStyle = a.fc || cs('--pn');
+          x.strokeStyle = a.bc || cs('--ac');
+          x.lineWidth = Math.max(2.5, a.w || 2.5);
+          x.beginPath();
+          x.roundRect(b[0], b[1], w, h, Math.min(14, h / 5));
+          x.fill();
+          x.stroke();
+          x.fillStyle = a.bc || cs('--ac');
+          x.font = '700 15px system-ui,sans-serif';
+          x.textAlign = 'center';
+          x.textBaseline = 'middle';
+          x.fillText(a.s || 'Symbol', b[0] + w / 2, b[1] + h / 2);
+          [
+            ...(a.inputMap || []).map((_, i) => [true, i]),
+            ...(a.outputMap || []).map((_, i) => [false, i])
+          ].forEach(([input, i]) => {
+            const p = symbolPort(a, input, i);
+            x.beginPath();
+            x.arc(p.x, p.y, 5, 0, Math.PI * 2);
+            x.fillStyle = a.bc || cs('--ac');
+            x.fill();
+            x.fillStyle = a.bc || cs('--ac');
+            x.font = '10px system-ui,sans-serif';
+            x.textAlign = input ? 'right' : 'left';
+            x.textBaseline = 'middle';
+            const vertical = a.layout == 'vertical';
+            x.fillText(
+              (input ? 'I' : 'O') + (i + 1),
+              vertical ? p.x : p.x + (input ? -9 : 9),
+              vertical ? p.y + (input ? -9 : 9) : p.y
+            );
+          });
         } else if (a.t == 'rect') {
           const b = rawNBox(a);
           if (a.fillOn) x.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
@@ -4812,15 +5304,6 @@
         }
         x.restore();
       });
-    });
-    selN.forEach((a) => {
-      const b = nBox(a);
-      x.save();
-      x.setLineDash([5, 4]);
-      x.lineWidth = 1.5;
-      x.strokeStyle = cs('--ac');
-      x.strokeRect(b[0] - 6, b[1] - 6, b[2] - b[0] + 12, b[3] - b[1] + 12);
-      x.restore();
     });
     x.textAlign = 'center';
     x.textBaseline = 'middle';
@@ -5123,6 +5606,15 @@
       pdf = $('#exformat').value == 'pdf';
     $('#exdlg').close();
     expImg(pdf, options);
+  });
+  $('#symin').oninput = updateSymbolMappingForm;
+  $('#symout').oninput = updateSymbolMappingForm;
+  $('#symform').addEventListener('submit', (e) => {
+    if (!e.submitter || e.submitter.value != 'create') return;
+    e.preventDefault();
+    if (!e.currentTarget.reportValidity()) return;
+    $('#symdlg').close();
+    createSymbolFromDialog();
   });
   $('#mdl').onchange = (e) => {
     RV = e.target.value == '1';
@@ -5563,10 +6055,40 @@
       });
       box.append(d);
     });
+    const favorites = getFavorites();
+    if (favorites.length) {
+      const d = document.createElement('details');
+      d.open = true;
+      d.innerHTML = '<summary>Favorites</summary><div class="pg"></div>';
+      favorites.forEach((favorite) => {
+        const row = document.createElement('div'),
+          insert = document.createElement('button'),
+          remove = document.createElement('button');
+        row.className = 'fav-item';
+        insert.className = 'fav-insert';
+        insert.dataset.k = favorite.name + ' custom symbol';
+        insert.title = 'Insert ' + favorite.name;
+        insert.append(icon('BUF'));
+        const label = document.createElement('span');
+        label.textContent = favorite.name;
+        insert.append(label);
+        insert.onclick = () => insertFavorite(favorite);
+        remove.className = 'fav-remove';
+        remove.dataset.k = favorite.name + ' custom symbol';
+        remove.type = 'button';
+        remove.textContent = '×';
+        remove.title = 'Remove ' + favorite.name + ' from Favorites';
+        remove.setAttribute('aria-label', remove.title);
+        remove.onclick = () => removeFavorite(favorite.name);
+        row.append(insert, remove);
+        d.querySelector('.pg').append(row);
+      });
+      box.append(d);
+    }
     $('#pq').oninput = (e) => {
       const q = e.target.value.toLowerCase();
       box
-        .querySelectorAll('button')
+        .querySelectorAll('button[data-k]')
         .forEach(
           (b) =>
             (b.hidden = !(b.textContent.toLowerCase().includes(q) || b.dataset.k.toLowerCase().includes(q)))
