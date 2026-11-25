@@ -1010,16 +1010,36 @@ await test('touch long-press opens context menu only while holding the same canv
   await p.goto(url);
   await p.waitForFunction(() => window.LogicLab);
   await p.click('#wn');
-  await p.evaluate(() => LogicLab.build({ parts: [{ id: 'A', type: 'IN' }] }));
+  await p.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'G', type: 'NOT' }
+      ]
+    })
+  );
   const point = await p.evaluate(() => {
-    const n = LogicLab.exportProject().nodes[0],
+    const n = LogicLab.exportProject().nodes.find((part) => part.name === 'G'),
       { v, el } = LogicLabHost.view(),
       r = el.getBoundingClientRect();
     return {
-      x: r.left + v.x + (n.x + 30) * v.s,
-      y: r.top + v.y + (n.y + 22) * v.s
+      x: r.left + v.x + (n.x + 10) * v.s,
+      y: r.top + v.y + (n.y + 20) * v.s,
+      input: { x: r.left + v.x + n.x * v.s, y: r.top + v.y + (n.y + 20) * v.s }
     };
   });
+  const output = await p.evaluate(() => {
+    const n = LogicLab.exportProject().nodes.find((part) => part.name === 'A'),
+      { v, el } = LogicLabHost.view(),
+      r = el.getBoundingClientRect();
+    return { x: r.left + v.x + (n.x + 76) * v.s, y: r.top + v.y + (n.y + 22) * v.s };
+  });
+  await p.click('#tw');
+  await p.touchscreen.tap(output.x, output.y);
+  await p.touchscreen.tap(point.input.x, point.input.y);
+  const wired = await p.evaluate(() => LogicLab.exportProject().wires.length);
+  eq(wired, 1, 'two ordinary touch taps should connect an output and input');
+
   const runTouchSequence = (action) =>
     p.evaluate(
       async ({ point, action }) => {
@@ -1041,13 +1061,13 @@ await test('touch long-press opens context menu only while holding the same canv
         canvas.setPointerCapture = () => {};
         send('pointerdown');
         if (action === 'tap') {
-          await wait(10);
+          await wait(80);
           send('pointerup');
-          await wait(40);
+          await wait(30);
           return document.querySelector('#cm').hidden;
         }
         if (action === 'hold') {
-          await wait(50);
+          await wait(350);
           const opened = !document.querySelector('#cm').hidden;
           send('pointerup');
           document.querySelector('#cm').hidden = true;
@@ -1078,7 +1098,7 @@ await test('touch long-press opens context menu only while holding the same canv
   }, point);
   ok(nativeTouchMenu.prevented, 'browser touch context menu is suppressed');
   ok(nativeTouchMenu.hidden, 'touch context menu requires the long-press gesture');
-  ok(await runTouchSequence('hold'), 'holding for 30 ms opens the context menu');
+  ok(await runTouchSequence('hold'), 'holding for 300 ms opens the context menu');
   ok(await runTouchSequence('move'), 'moving from the original place cancels the long-press');
   await m.close();
 });

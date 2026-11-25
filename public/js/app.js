@@ -3872,7 +3872,7 @@
           }
           touchHold = null;
           ctx(current.clientX, current.clientY, point);
-        }, 30);
+        }, 300);
       }
       if (selW) {
         const a = idm.get(selW.a),
