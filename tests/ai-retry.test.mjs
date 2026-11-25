@@ -41,8 +41,9 @@ await page.route('**/api/**', async (route) => {
           provider: 'groq'
         }
       });
-    if (aiCalls === 2) return route.fulfill({ status: 502, json: { error: 'Temporary provider failure.' } });
-    if (aiCalls === 4)
+    if (aiCalls >= 2 && aiCalls <= 8)
+      return route.fulfill({ status: 502, json: { error: 'Temporary provider failure.' } });
+    if (aiCalls === 10)
       return route.fulfill({
         json: {
           content: [
@@ -64,7 +65,7 @@ await page.route('**/api/**', async (route) => {
           provider: 'gemini'
         }
       });
-    if (aiCalls === 6)
+    if (aiCalls === 12)
       return route.fulfill({
         json: {
           content: [{ type: 'tool_use', id: 'clear-current', name: 'clear_circuit', input: {} }],
@@ -77,11 +78,13 @@ await page.route('**/api/**', async (route) => {
           {
             type: 'text',
             text:
-              aiCalls === 3
+              aiCalls === 9
                 ? 'Circuit built and the request continued.'
-                : aiCalls === 5
+                : aiCalls === 11
                   ? 'The 1,000-part circuit is ready.'
-                  : 'The existing circuit was kept.'
+                  : aiCalls === 13
+                    ? 'The existing circuit was kept.'
+                    : '| Inputs | Sum | Cout |\n|-------|-----|------|\n| 000 | 0 | 0 |\n| 001 | 1 | 0 |\n\n### How it works\n1. **XOR A,B** → intermediate value.\n2. XOR with Cin → Sum output.\n\n### Next steps (optional)\n- Multi-bit adder\n- Ripple-carry adder'
           }
         ],
         provider: 'gemini'
@@ -99,11 +102,46 @@ await test('AI retries the failed step and continues without replaying completed
   await page.fill('#ai #aq', 'Build a simple circuit.');
   await page.click('#ai #aisend');
   await page.waitForSelector('.ai-approval [data-ai-apply]', { timeout: 3000 });
+  await page.evaluate(() => {
+    window.__retryLabels = [];
+    new MutationObserver(() => {
+      const retry = document.querySelector('#am .ai-retrying .ai-retry-count');
+      if (retry) window.__retryLabels.push(retry.textContent);
+    }).observe(document.querySelector('#am'), {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+    window.__nativeRetryTimers = {
+      setTimeout: window.setTimeout,
+      setInterval: window.setInterval
+    };
+    window.setTimeout = (fn, delay, ...args) =>
+      window.__nativeRetryTimers.setTimeout.call(window, fn, Math.min(Number(delay) || 0, 1), ...args);
+    window.setInterval = (fn, delay, ...args) =>
+      window.__nativeRetryTimers.setInterval.call(window, fn, Math.min(Number(delay) || 0, 5), ...args);
+  });
   await page.click('.ai-approval [data-ai-apply]');
-  await page.waitForTimeout(6000);
-  await page.waitForFunction(() => document.querySelectorAll('#am .bb.a').length === 1);
-  eq(aiCalls, 3, 'one original model step, one failed step, and one continuation retry');
-  eq(requests[2], requests[1], 'retry reuses the exact failed-step conversation');
+  await page.waitForFunction(() => document.querySelector('#am #aretry'), null, { timeout: 10000 });
+  eq(aiCalls, 8, 'one initial failure followed by three hidden and three visible retries');
+  eq(await page.locator('#am #aretry').innerText(), 'Retry', 'manual retry has no countdown');
+  for (let i = 2; i < 8; i++) eq(requests[i], requests[1], 'retry reuses the exact failed-step conversation');
+  for (const delay of [35, 45, 55])
+    ok(
+      (await page.evaluate(() => window.__retryLabels)).includes('Retrying automatically in ' + delay + 's'),
+      'visible retry countdown starts at ' + delay + ' seconds'
+    );
+  eq(await page.locator('#ai #aq').isEnabled(), true, 'chat input remains available after retries fail');
+  await page.evaluate(() => {
+    window.setTimeout = window.__nativeRetryTimers.setTimeout;
+    window.setInterval = window.__nativeRetryTimers.setInterval;
+    delete window.__nativeRetryTimers;
+  });
+  await page.click('#am #aretry');
+  await page.waitForFunction(() =>
+    document.querySelector('#am').innerText.includes('Circuit built and the request continued.')
+  );
   eq(requests[0].mode, 'conversation');
   eq(requests[1].mode, 'conversation');
   eq(await page.locator('#am .bb.u').count(), 1, 'user message is not duplicated');
@@ -128,10 +166,10 @@ await test('AI builds 1,000 gates and sends the full compact canvas context', as
   await page.waitForFunction(() =>
     document.querySelector('#am').innerText.includes('The 1,000-part circuit is ready.')
   );
-  ok(requests[4].context.includes('AND:"Gate 999"'), 'latest gate is present in context');
+  ok(requests[10].context.includes('AND:"Gate 999"'), 'latest gate is present in context');
   ok(
-    requests[4].context.length > 15000,
-    'context includes the large circuit netlist (' + requests[4].context.length + ' chars)'
+    requests[10].context.length > 15000,
+    'context includes the large circuit netlist (' + requests[10].context.length + ' chars)'
   );
   ok((await page.locator('#am').innerText()).includes('The 1,000-part circuit is ready.'));
   await page.waitForFunction(() => !document.querySelector('#aisend').disabled);
@@ -148,6 +186,21 @@ await test('AI cancel keeps the existing circuit unchanged', async () => {
   );
   eq(await page.evaluate(() => LogicLab.parts().length), 1000);
   ok((await page.locator('#am').innerText()).includes('The existing circuit was kept.'));
+});
+
+await test('AI chat renders Markdown tables, headings and ordered lists', async () => {
+  await page.fill('#ai #aq', 'Show an example truth table.');
+  await page.click('#ai #aisend');
+  await page.waitForSelector('#am .ai-table');
+  eq(await page.locator('#am .ai-table th').allInnerTexts(), ['Inputs', 'Sum', 'Cout']);
+  eq(await page.locator('#am .ai-table tbody tr').count(), 2);
+  eq(await page.locator('#am h3').allInnerTexts(), ['How it works', 'Next steps (optional)']);
+  eq(await page.locator('#am ol li').count(), 2);
+  eq(await page.locator('#am ul li').count(), 2);
+  ok(
+    !(await page.locator('#am').innerText()).includes('|-------|'),
+    'table separator is not shown as raw text'
+  );
 });
 
 await browser.close();

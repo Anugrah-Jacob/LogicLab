@@ -1963,6 +1963,41 @@ footer {
   margin: 6px 0;
   white-space: pre;
 }
+.ai-table-wrap {
+  max-width: 100%;
+  margin: 10px 0;
+  overflow-x: auto;
+}
+.bb.a .ai-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.bb.a .ai-table th,
+.bb.a .ai-table td {
+  padding: 5px 8px;
+  border: 1px solid #7181a866;
+  text-align: left;
+  white-space: nowrap;
+}
+.bb.a .ai-table th {
+  color: #fff;
+  background: #ffffff12;
+}
+.bb.a h3 {
+  margin: 14px 0 6px;
+  color: #fff;
+  font-size: 15px;
+}
+.bb.a ol,
+.bb.a ul {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+.bb.a li + li {
+  margin-top: 4px;
+}
 .bb code {
   background: #3b82f622;
   padding: 1px 5px;

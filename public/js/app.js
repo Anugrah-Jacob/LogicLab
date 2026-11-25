@@ -6046,19 +6046,74 @@
     e.textContent = t;
     e.className = 'st ' + (c || '');
   }
-  const mdx = (t) =>
-    String(t)
+  const mdx = (t) => {
+    const inline = (s) =>
+      esc(s)
+        .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+    const cells = (line) =>
+      line
+        .trim()
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map((cell) => cell.trim());
+    const blocks = (text) => {
+      const lines = text.split('\n'),
+        html = [];
+      for (let i = 0; i < lines.length;) {
+        const line = lines[i],
+          next = lines[i + 1] || '';
+        if (line.includes('|') && /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(next)) {
+          const headers = cells(line);
+          i += 2;
+          let table =
+            '<div class="ai-table-wrap"><table class="ai-table"><thead><tr>' +
+            headers.map((cell) => '<th>' + inline(cell) + '</th>').join('') +
+            '</tr></thead><tbody>';
+          while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+            const row = cells(lines[i]);
+            table +=
+              '<tr>' +
+              headers.map((_, index) => '<td>' + inline(row[index] || '') + '</td>').join('') +
+              '</tr>';
+            i++;
+          }
+          html.push(table + '</tbody></table></div>');
+        } else if (/^\s*#{1,6}\s+/.test(line)) {
+          const heading = line.trim().replace(/^#{1,6}\s+/, '');
+          html.push('<h3>' + inline(heading) + '</h3>');
+          i++;
+        } else if (/^\s*\d+\.\s+/.test(line)) {
+          let list = '<ol>';
+          while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+            list += '<li>' + inline(lines[i].replace(/^\s*\d+\.\s+/, '')) + '</li>';
+            i++;
+          }
+          html.push(list + '</ol>');
+        } else if (/^\s*[-*]\s+/.test(line)) {
+          let list = '<ul>';
+          while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+            list += '<li>' + inline(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>';
+            i++;
+          }
+          html.push(list + '</ul>');
+        } else {
+          html.push(inline(line));
+          i++;
+        }
+      }
+      return html.join('<br>');
+    };
+    return String(t)
       .split(/(```[\s\S]*?```)/g)
-      .map((p) =>
-        p.startsWith('```')
-          ? '<pre>' + esc(p.replace(/^```\w*\n?/, '').replace(/```$/, '')) + '</pre>'
-          : esc(p)
-              .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-              .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
-              .replace(/^[-*] /gm, '• ')
-              .replace(/\n/g, '<br>')
+      .map((part) =>
+        part.startsWith('```')
+          ? '<pre>' + esc(part.replace(/^```\w*\n?/, '').replace(/```$/, '')) + '</pre>'
+          : blocks(part)
       )
       .join('');
+  };
   /* theme + menus */
   const isDark = () =>
     (document.documentElement.dataset.theme ||
@@ -6784,7 +6839,6 @@
     return m.slice(i);
   }
   const DOTS = '<span class="dots"><i></i><i></i><i></i></span>';
-  const AI_RETRY_DELAYS = [5, 5];
   const aiWait = (node, seconds, visible = true) =>
     new Promise((resolve) => {
       if (!visible) {
@@ -6822,9 +6876,9 @@
         return await api('/ai', { method: 'POST', body });
       } catch (e) {
         if (e.status && ![429, 502, 503, 504].includes(e.status)) throw e;
-        if (attempt >= 2) throw e;
-        const visible = attempt === 1;
-        await aiWait(node, AI_RETRY_DELAYS[Math.min(attempt, 1)], visible);
+        if (attempt >= 6) throw e;
+        const visible = attempt >= 3;
+        await aiWait(node, 5 + attempt * 10, visible);
         attempt++;
       }
     }
@@ -6840,9 +6894,7 @@
       '<span>' +
       esc(message) +
       '</span>' +
-      (retryable
-        ? '<button type="button" id="aretry" class="ai-retry-now">Continue this request</button>'
-        : '');
+      (retryable ? '<button type="button" id="aretry" class="ai-retry-now">Retry</button>' : '');
     const retryButton = node.querySelector('#aretry');
     if (retryButton)
       retryButton.onclick = async () => {
