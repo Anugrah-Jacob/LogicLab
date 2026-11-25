@@ -116,7 +116,7 @@
         }
       ]
     </script>
-    <link rel="stylesheet" href="css/app.css?v=4183e3ca" />
+    <link rel="stylesheet" href="css/app.css?v=89c9a9c4" />
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
@@ -304,13 +304,18 @@
         <div class="fl" id="tb">
           <button id="tsel" class="on" title="Select (drag a box to multi-select)" aria-label="Select">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-pointer" /></svg></button
-          ><button id="tpan" title="Pan (drag the canvas)" aria-label="Pan">
+          ><button
+            id="tpan"
+            title="Pan (touchscreen: drag blank space or pinch to zoom; touchpad: two-finger scroll to pan or pinch to zoom)"
+            aria-label="Pan"
+          >
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-pan" /></svg></button
           ><button id="tw" title="Draw a wire with multiple bends (automatic routing is the default)" aria-label="Wire">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-wire" /></svg></button
           ><button id="tpal" class="on" title="Show or hide parts">▦</button
           ><button id="tan" class="on" title="Show or hide analysis">◧</button
-          ><button id="snp" class="on" title="Snap to invisible grid">⌗</button
+          ><button id="snp" title="Freeform dragging off (grid snapping on)" aria-label="Freeform dragging" aria-pressed="false">
+            Freeform</button
           ><button id="tsc" class="on" title="Show or hide waveforms">∿</button>
         </div>
         <div class="fl" id="zm">
@@ -736,11 +741,11 @@
       ><button data-n="ai" class="fab" aria-label="LogicLab AI">✦</button><button data-n="wave"><span>∿</span>Waveform</button
       ><button data-n="side"><span>⋯</span>More</button>
     </nav>
-    <script defer src="js/config.js?v=4183e3ca"></script>
-    <script defer src="js/examples.js?v=4183e3ca"></script>
-    <script defer src="js/ads.js?v=4183e3ca"></script>
-    <script defer src="js/app.js?v=4183e3ca"></script>
-    <script defer src="js/merge.js?v=4183e3ca"></script>
-    <script defer src="js/collab.js?v=4183e3ca"></script>
+    <script defer src="js/config.js?v=89c9a9c4"></script>
+    <script defer src="js/examples.js?v=89c9a9c4"></script>
+    <script defer src="js/ads.js?v=89c9a9c4"></script>
+    <script defer src="js/app.js?v=89c9a9c4"></script>
+    <script defer src="js/merge.js?v=89c9a9c4"></script>
+    <script defer src="js/collab.js?v=89c9a9c4"></script>
   </body>
 </html>

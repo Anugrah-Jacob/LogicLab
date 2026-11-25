@@ -615,6 +615,37 @@
     $('#zl').textContent = Math.round(view.s * 100) + '%';
     requestAnimationFrame(frame);
   }
+  function hexRgb(color) {
+    const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
+    if (!match) return null;
+    const hex = match[1].length == 3 ? [...match[1]].map((v) => v + v).join('') : match[1];
+    return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  }
+  function blendHex(base, tint, amount) {
+    const a = hexRgb(base),
+      b = hexRgb(tint);
+    if (!a || !b) return null;
+    return (
+      '#' +
+      a
+        .map((v, i) =>
+          Math.round(v + (b[i] - v) * amount)
+            .toString(16)
+            .padStart(2, '0')
+        )
+        .join('')
+    );
+  }
+  function gateFill(c, base, x, y, h) {
+    const gradient = c.createLinearGradient(x, y, x, y + h);
+    gradient.addColorStop(0, blendHex(base, cs('--ac'), 0.08) || base);
+    gradient.addColorStop(1, blendHex(base, cs('--ac'), 0.24) || base);
+    return gradient;
+  }
+  function gateGlow(color, opacity) {
+    const rgb = hexRgb(color);
+    return rgb ? `rgba(${rgb.join(',')},${opacity})` : color;
+  }
   function shape(c, t, x, y, w, h) {
     const iv = INV.test(t),
       bx = x + w - (iv ? 10 : 0),
@@ -1242,7 +1273,12 @@
       c.shadowBlur = 16;
     }
     if (isG(n)) {
+      c.save();
+      c.shadowColor = gateGlow(cs('--ac'), sl ? 0.6 : 0.22);
+      c.shadowBlur = sl ? 18 : 9;
+      c.fillStyle = gateFill(c, n.color || cs('--pn'), n.x, n.y, h);
       shape(c, t, n.x, n.y, W, h);
+      c.restore();
       c.shadowBlur = 0;
       if (/OR/.test(t)) {
         const o = /XOR|XNOR/.test(t) ? 8 : 0,
@@ -3910,7 +3946,7 @@
         hd.s0 = p;
         return;
       }
-      if (tool == 'pan' || e.button == 1) {
+      if (tool == 'pan' || e.button == 1 || e.pointerType == 'touch') {
         pan = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
       } else {
         if (!add_) {
@@ -4048,7 +4084,14 @@
       e.preventDefault();
       const r = c.getBoundingClientRect();
       view = V[c === cv ? 0 : 1];
-      zoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - r.left, e.clientY - r.top, c);
+      if (e.ctrlKey) {
+        zoom(Math.exp(-e.deltaY * 0.002), e.clientX - r.left, e.clientY - r.top, c);
+      } else if (e.deltaMode == 0) {
+        view.x -= e.deltaX;
+        view.y -= e.deltaY;
+      } else {
+        zoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - r.left, e.clientY - r.top, c);
+      }
     };
   }
   bind(cv);
@@ -4111,8 +4154,11 @@
     c.strokeStyle = c.fillStyle = brightness > 140 ? '#17365f' : '#c6ddff';
     c.lineJoin = 'round';
     if (MULTI.has(t) || t == 'NOT' || t == 'BUF') {
-      c.fillStyle = cs('--pn');
+      c.shadowColor = gateGlow(cs('--ac'), 0.25);
+      c.shadowBlur = 4;
+      c.fillStyle = gateFill(c, cs('--pn'), 5, 4, 22);
       shape(c, t, 5, 4, 30, 22);
+      c.shadowBlur = 0;
     } else if (t == 'IN') {
       c.beginPath();
       c.roundRect(7, 8, 26, 14, 7);
@@ -4694,6 +4740,25 @@
       }
     },
     isReadOnly: () => RO,
+    /** Add an accepted invitation to this account's Recent Projects list. */
+    addSharedRecent(room, name, count = 0) {
+      if (!/^[A-Za-z0-9_-]{6,40}$/.test(room)) throw new Error('Invalid shared project room.');
+      const id = 'shared-' + room,
+        list = idxGet(),
+        entry = list.find((e) => e.id == id) || { id, created: Date.now() };
+      Object.assign(entry, {
+        name: name || 'Shared project',
+        sharedRoom: room,
+        type: 'Shared',
+        count,
+        updated: Date.now(),
+        dirty: 0
+      });
+      if (!list.includes(entry)) list.push(entry);
+      if (!lsS(kk('idx'), JSON.stringify(list)))
+        throw new Error('Could not save this shared project to Recent Projects.');
+      rcRender();
+    },
     /** Give this person their own range of ids so two people never create the same id. */
     ownRange(lo, hi) {
       const ids = [
@@ -5033,10 +5098,15 @@
     if (HOOK.commit) HOOK.commit();
   };
   $('#insp').onchange = () => commit();
-  $('#snp').onclick = (e) => {
-    snapOn = !snapOn;
-    e.currentTarget.classList.toggle('on', snapOn);
-  };
+  function setFreeform(on) {
+    snapOn = !on;
+    const button = $('#snp');
+    button.classList.toggle('on', on);
+    button.setAttribute('aria-pressed', String(on));
+    button.title = `Freeform dragging ${on ? 'on' : 'off'} (grid snapping ${on ? 'off' : 'on'})`;
+  }
+  $('#snp').onclick = () => setFreeform(snapOn);
+  setFreeform(!snapOn);
   addEventListener('dragover', (e) => e.preventDefault());
   addEventListener('drop', (e) => {
     e.preventDefault();
@@ -5641,7 +5711,7 @@
     $('#spd').value = sps;
     $('#wz').value = win;
     $('#mdl').value = RV ? 1 : 0;
-    $('#snp').classList.toggle('on', snapOn);
+    setFreeform(!snapOn);
     cur = '';
     restore(d, 0);
     pname = d.name || nm || 'Untitled';
@@ -6390,6 +6460,7 @@
         }
       }
       for (const e of idxGet()) {
+        if (e.sharedRoom) continue;
         const sv = sm.get(e.id);
         if (!sv || e.dirty || e.updated > sv.updated) {
           const doc = lsG(kk('p:') + e.id);
@@ -6462,7 +6533,7 @@
               '" alt=""><b>' +
               esc(e.name) +
               '<small>Logic circuit' +
-              (e.dirty && USER ? ' · not synced yet' : '') +
+              (e.sharedRoom ? ' · shared with you' : e.dirty && USER ? ' · not synced yet' : '') +
               '</small></b><span class="ty">' +
               esc(e.type || 'Circuit') +
               '</span><span>⚙ ' +
@@ -6471,7 +6542,11 @@
               ago(e.updated) +
               '</span><button data-del="' +
               e.id +
-              '" title="Delete project" aria-label="Delete project">✕</button></div>'
+              '" title="' +
+              (e.sharedRoom ? 'Remove from Recent Projects' : 'Delete project') +
+              '" aria-label="' +
+              (e.sharedRoom ? 'Remove shared project from Recent Projects' : 'Delete project') +
+              '">✕</button></div>'
           )
           .join('')
       : '<p class="mu">' +
@@ -6496,6 +6571,11 @@
       requestAnimationFrame(() => $('#' + section)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
   function openRecent(id) {
+    const recent = idxGet().find((e) => e.id == id);
+    if (recent && recent.sharedRoom) {
+      if (HOOK.openShared) return HOOK.openShared(recent.sharedRoom);
+      return toast('Could not open this shared project. Reload the page and try again.', 'error');
+    }
     const j = lsG(kk('p:') + id);
     if (!j) return toast('That project is not on this device yet.', 'warn');
     try {
@@ -6519,6 +6599,14 @@
   $('#rl').onclick = (e) => {
     const d = e.target.dataset.del;
     if (d) {
+      const recent = idxGet().find((i) => i.id == d);
+      if (recent && recent.sharedRoom) {
+        if (confirm('Remove this shared project from Recent Projects? This does not revoke your access.')) {
+          lsS(kk('idx'), JSON.stringify(idxGet().filter((i) => i.id != d)));
+          rcRender();
+        }
+        return;
+      }
       if (confirm('Delete this project from this device' + (USER ? ' and your account' : '') + '?')) {
         lsD(kk('p:') + d);
         lsD(kk('t:') + d);

@@ -88,6 +88,19 @@ await test('editor uses one workspace without a separate mode selector', async (
   ok(await pg.isVisible('#dt'), 'drawing tools remain available');
   ok(await pg.isVisible('#side .stabs'), 'analysis remains available');
 });
+await test('freeform dragging button toggles grid snapping on and off', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  const button = pg.locator('#snp');
+  eq(await button.innerText(), 'Freeform');
+  eq(await button.getAttribute('aria-pressed'), 'false');
+  eq(await pg.evaluate(() => LogicLab.exportProject().snap), true);
+  await button.click();
+  eq(await button.getAttribute('aria-pressed'), 'true');
+  eq(await pg.evaluate(() => LogicLab.exportProject().snap), false);
+  await button.click();
+  eq(await button.getAttribute('aria-pressed'), 'false');
+  eq(await pg.evaluate(() => LogicLab.exportProject().snap), true);
+});
 await test('canvas zoom extends well beyond the old 3x ceiling', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
   for (let i = 0; i < 10; i++) await pg.click('#zi');
@@ -243,15 +256,20 @@ await test('Simplify creates a mapped symbol and Favorites insert independent co
   eq(doc.notes.filter((n) => n.t === 'symbol').length, 2, 'favorite insertion includes the symbol overlay');
   eq(doc.groups.length, 2, 'each symbol and its circuit are grouped');
 });
-await test('palette gate icons keep a high-contrast outline', async () => {
+await test('palette gate icons keep a high-contrast outline and gradient fill', async () => {
   await pg.evaluate(() => LogicLab.load(''));
   const contrast = await pg.locator('#pal button[data-k="AND"] canvas').evaluate((canvas) => {
-    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext('2d'),
+      { data } = ctx.getImageData(0, 0, canvas.width, canvas.height),
+      sample = (x, y) => [...ctx.getImageData(x, y, 1, 1).data].slice(0, 3);
     let dark = 0;
     for (let i = 0; i < data.length; i += 4) if (data[i + 3] && data[i] < 100 && data[i + 2] < 140) dark++;
-    return dark;
+    const top = sample(30, 14),
+      bottom = sample(30, 46);
+    return { dark, gradientDelta: Math.max(...top.map((v, i) => Math.abs(v - bottom[i]))) };
   });
-  ok(contrast > 20, 'gate icon should have visible dark outline pixels');
+  ok(contrast.dark > 20, 'gate icon should have visible dark outline pixels');
+  ok(contrast.gradientDelta > 10, 'gate fill should have visible gradient shading');
 });
 await test('wire context menu supports adding a saved routing bend', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
@@ -527,6 +545,79 @@ await test('middle-button drag pans the canvas', async () => {
   await pg.mouse.up({ button: 'middle' });
   const after = await pg.evaluate(() => LogicLabHost.view().v);
   ok(after.x !== before.x || after.y !== before.y, 'canvas offset should change while panning');
+});
+
+await test('touchscreen drag pans the canvas and two-finger pinch zooms', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  await pg.click('#tsel');
+  const result = await pg.evaluate(() => {
+    const canvas = LogicLabHost.view().el,
+      view = LogicLabHost.view().v,
+      before = { ...view },
+      send = (type, pointerId, clientX, clientY) =>
+        canvas.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId,
+            pointerType: 'touch',
+            isPrimary: pointerId === 1,
+            button: 0,
+            buttons: type === 'pointerup' ? 0 : 1,
+            clientX,
+            clientY,
+            bubbles: true
+          })
+        );
+    canvas.setPointerCapture = () => {};
+    send('pointerdown', 1, 200, 200);
+    send('pointermove', 1, 240, 230);
+    send('pointerup', 1, 240, 230);
+    const panned = { ...view };
+    send('pointerdown', 1, 200, 200);
+    send('pointerdown', 2, 300, 200);
+    send('pointermove', 2, 320, 200);
+    send('pointermove', 2, 340, 200);
+    send('pointermove', 1, 200, 200);
+    send('pointerup', 2, 340, 200);
+    send('pointerup', 1, 200, 200);
+    return {
+      panned: panned.x !== before.x || panned.y !== before.y,
+      pinchZoomed: view.s > panned.s
+    };
+  });
+  ok(result.panned, 'a one-finger drag on blank canvas should pan');
+  ok(result.pinchZoomed, 'a two-finger pinch should zoom in');
+});
+
+await test('touchpad scroll pans and pinch zooms while mouse wheel still zooms', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  const result = await pg.evaluate(() => {
+    const canvas = LogicLabHost.view().el,
+      view = LogicLabHost.view().v,
+      before = { ...view },
+      wheel = (options) =>
+        canvas.dispatchEvent(
+          new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 200,
+            clientY: 200,
+            ...options
+          })
+        );
+    wheel({ deltaX: 12, deltaY: 35, deltaMode: 0 });
+    const scrolled = { ...view };
+    wheel({ deltaY: -30, deltaMode: 0, ctrlKey: true });
+    const pinched = { ...view };
+    wheel({ deltaY: -1, deltaMode: 1 });
+    return {
+      touchpadPanned: scrolled.x !== before.x || scrolled.y !== before.y,
+      touchpadPinched: pinched.s > scrolled.s,
+      wheelZoomed: view.s > pinched.s
+    };
+  });
+  ok(result.touchpadPanned, 'pixel-based touchpad scrolling should pan');
+  ok(result.touchpadPinched, 'Ctrl+wheel pinch should zoom smoothly');
+  ok(result.wheelZoomed, 'a traditional mouse wheel should continue to zoom');
 });
 
 /* ---- editing, undo/redo, groups, drawings ---- */

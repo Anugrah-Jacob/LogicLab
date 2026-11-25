@@ -774,6 +774,38 @@
     const m = /^#invite=([A-Za-z0-9_-]{6,40})$/.exec(location.hash);
     return m ? { room: m[1], invite: true, roomOnly: true } : null;
   }
+  function clearInviteHash(invite) {
+    if (location.hash === '#invite=' + invite.room)
+      history.replaceState(history.state, '', location.pathname + location.search);
+  }
+  async function joinInvitation(invite) {
+    const info = await api('/collab/invite/join', {
+      share: invite.room,
+      name: (host.user() || {}).name
+    });
+    await startSession(info, false);
+    host.addSharedRecent(info.room, info.title, info.doc.nodes.length);
+    clearInviteHash(invite);
+    toast(
+      info.role === 'view' ? 'Joined as view only.' : 'Joined. Your changes are shared live.',
+      'ok',
+      4500
+    );
+  }
+  async function openSharedRecent(room) {
+    const invite = { room, invite: true, roomOnly: true };
+    if (!host.user()) {
+      host.auth('login', 'Sign in with the email address this project was shared with.', () =>
+        openSharedRecent(room)
+      );
+      return;
+    }
+    try {
+      await joinInvitation(invite);
+    } catch (e) {
+      toast('Could not open this shared project: ' + e.message, 'error', 5000);
+    }
+  }
   async function openInvitation(invite) {
     if (!host.user()) {
       host.auth(
@@ -795,17 +827,8 @@
       $('#cb-go', d).disabled = true;
       $('#cb-go', d).textContent = 'Joining…';
       try {
-        const info = await api('/collab/invite/join', {
-          share: invite.room,
-          name: (host.user() || {}).name
-        });
         d.remove();
-        await startSession(info, false);
-        toast(
-          info.role === 'view' ? 'Joined as view only.' : 'Joined. Your changes are shared live.',
-          'ok',
-          4500
-        );
+        await joinInvitation(invite);
       } catch (e) {
         d.remove();
         if (e.status === 401) host.auth('login', e.message, () => openInvitation(invite));
@@ -1415,7 +1438,15 @@
   }
 
   /* ---------------------------------------------------------------- start-up */
-  window.LogicLabCollab = { session: () => S, leave, openHistory, accessOf, _flush: flushLocalNow };
+  window.LogicLabCollab = {
+    session: () => S,
+    leave,
+    openHistory,
+    openShared: openSharedRecent,
+    accessOf,
+    _flush: flushLocalNow
+  };
+  HOOK.openShared = openSharedRecent;
   const j = parseJoin();
   const invite = parseInvite();
   if (j) {

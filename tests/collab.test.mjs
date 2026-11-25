@@ -923,10 +923,53 @@ await test('turning sharing off from the owner’s popover ends the owner’s se
   eq(r.status, 403);
   await E.page.waitForFunction(() => !LogicLabCollab.session(), null, { timeout: 20000 });
 });
+let I;
+await test('accepted invites persist in Recent Projects and reopen without the invite prompt', async () => {
+  const email = 'recent' + Date.now() + '@example.com';
+  const projectName = await O.page.inputValue('#pn');
+  const room = await O.page.evaluate(async (email) => {
+    const r = await fetch('/api/collab/share', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'invite', pid: LogicLabHost.pid(), email, role: 'edit' })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Could not create an invitation.');
+    return data.share.id;
+  }, email);
+  const signup = await fetch(app2.url + 'api/auth/signup', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Recent Member', email, password: 'correct horse 9' })
+  });
+  eq(signup.status, 200);
+  const [cookieName, ...cookieValue] = signup.headers.getSetCookie()[0].split(';')[0].split('=');
+  I = await open([{ name: cookieName, value: cookieValue.join('='), url: app2.url }]);
+  await I.page.goto(app2.url);
+  await I.page.waitForFunction(() => window.LogicLabCollab);
+  await I.page.waitForFunction(() => document.querySelector('#av').textContent.trim() !== 'Sign in');
+  await I.page.evaluate((room) => (location.hash = 'invite=' + room), room);
+  await I.page.waitForSelector('#cb-go');
+  await I.page.click('#cb-go');
+  await I.page.waitForFunction(() => LogicLabCollab.session() && document.querySelector('#wl').hidden);
+  await I.page.click('#hm');
+  const row = I.page.locator('.rr[data-id="shared-' + room + '"]');
+  await row.waitFor();
+  ok((await row.innerText()).includes('shared with you'));
+  eq(await I.page.evaluate(() => location.hash), '', 'accepted invite link is removed from the URL');
+  await I.page.reload();
+  await I.page.waitForFunction(() => window.LogicLabCollab && !document.querySelector('#wl').hidden);
+  eq(await I.page.locator('.cb-modal').count(), 0, 'reload does not show the invite prompt again');
+  await I.page.locator('.rr[data-id="shared-' + room + '"]').click();
+  await I.page.waitForFunction(() => LogicLabCollab.session() && document.querySelector('#wl').hidden);
+  eq(await I.page.evaluate(() => LogicLabHost.doc().name), projectName);
+  eq(await I.page.locator('.cb-modal').count(), 0, 'opening from recents joins directly');
+});
 await test('no script errors in any browser', async () => {
-  eq([O.problems, E.problems, V.problems], [[], [], []]);
+  eq([O.problems, E.problems, V.problems, I.problems], [[], [], [], []]);
 });
 
+if (I) await I.ctx.close();
 await browser.close();
 app.close();
 app2.close();
