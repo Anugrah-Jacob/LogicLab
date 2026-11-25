@@ -10,9 +10,40 @@
  */
 (function (root) {
   'use strict';
-  const NODE_FIELDS = ['id', 'type', 'x', 'y', 'name', 'nin', 'per', 'trig', 'probe', 'hide', 'mom'];
+  const NODE_FIELDS = [
+    'id',
+    'type',
+    'x',
+    'y',
+    'name',
+    'nin',
+    'per',
+    'trig',
+    'probe',
+    'hide',
+    'mom',
+    'scale',
+    'rot',
+    'color'
+  ];
   const TYPES = new Set([
-    'AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR', 'NOT', 'BUF', 'D', 'T', 'JK', 'IN', 'CLK', 'LED', 'METER', 'SIPO', 'PISO'
+    'AND',
+    'OR',
+    'NAND',
+    'NOR',
+    'XOR',
+    'XNOR',
+    'NOT',
+    'BUF',
+    'D',
+    'T',
+    'JK',
+    'IN',
+    'CLK',
+    'LED',
+    'METER',
+    'SIPO',
+    'PISO'
   ]);
   const MAX_SKEW = 10 * 60 * 1000; // ignore timestamps more than 10 minutes in the future
 
@@ -37,7 +68,7 @@
       });
       m.set('n:' + n.id, v);
     });
-    (doc.wires || []).forEach((w) => m.set(wkey(w), 1));
+    (doc.wires || []).forEach((w) => m.set(wkey(w), w));
     (doc.notes || []).forEach((a) => {
       if (a && a.id != null) m.set('a:' + a.id, a);
     });
@@ -50,6 +81,7 @@
   }
 
   const num = (x) => typeof x === 'number' && isFinite(x);
+  const point = (p) => p && typeof p === 'object' && num(p.x) && num(p.y);
   /** Reject anything that is not a well-formed item, so a bad message can never crash someone's editor. */
   function valid(k, v) {
     if (typeof k !== 'string' || k.length > 80) return false;
@@ -59,7 +91,26 @@
     if (k[1] !== ':' && kind !== 'w') return false;
     if (kind === 'w') {
       const p = k.split(':').slice(1).map(Number);
-      return p.length === 4 && p.every((x) => Number.isInteger(x) && x >= 0) && (v === 1 || v === null);
+      return (
+        p.length === 4 &&
+        p.every((x) => Number.isInteger(x) && x >= 0) &&
+        (v === null ||
+          v === 1 ||
+          (v &&
+            typeof v === 'object' &&
+            v.a === p[0] &&
+            v.ap === p[1] &&
+            v.b === p[2] &&
+            v.bp === p[3] &&
+            JSON.stringify(v).length < 200000 &&
+            (v.color === undefined || (typeof v.color === 'string' && /^#[\da-f]{6}$/i.test(v.color))) &&
+            (v.bends === undefined ||
+              (Array.isArray(v.bends) && v.bends.length <= 200 && v.bends.every(point))) &&
+            (v.via === undefined || point(v.via)) &&
+            (v.mx === undefined || num(v.mx)) &&
+            (v.my === undefined || num(v.my)) &&
+            (v.mode === undefined || v.mode === 'straight' || v.mode === 'orthogonal')))
+      );
     }
     if (v === null) return 'nagl'.includes(kind) && Number.isFinite(id);
     if (typeof v !== 'object' || Array.isArray(v) || !Number.isFinite(id)) return false;
@@ -71,7 +122,10 @@
         num(v.y) &&
         (v.name === undefined || (typeof v.name === 'string' && v.name.length <= 16)) &&
         (v.nin === undefined || (Number.isInteger(v.nin) && v.nin >= 1 && v.nin <= 16)) &&
-        (v.per === undefined || num(v.per))
+        (v.per === undefined || num(v.per)) &&
+        (v.color === undefined ||
+          v.color === '' ||
+          (typeof v.color === 'string' && /^#[\da-f]{6}$/i.test(v.color)))
       );
     if (kind === 'a') return v.id === id && JSON.stringify(v).length < 200000;
     if (kind === 'g') return v.id === id && Array.isArray(v.ids) && v.ids.every(num);
@@ -152,7 +206,7 @@
           if (!prev || newer(e, prev.e)) dest.set(d, { k, e });
         } else out.set(k, e.v);
       }
-      for (const { k } of dest.values()) out.set(k, 1);
+      for (const { k, e } of dest.values()) out.set(k, e.v);
       return out;
     }
     /** What must change in the live document so it matches our state: [{ k, v }], parts first. */

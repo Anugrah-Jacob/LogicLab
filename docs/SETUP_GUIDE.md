@@ -3,8 +3,8 @@
 This guide takes you from nothing to a live LogicLab site with accounts, an admin panel and AI. You do not need to
 know Cloudflare already. Every step says what to type and what you should see.
 
-Time: about 30 minutes. Cost: Cloudflare's free plan is enough to start. AI providers may charge for usage (some,
-such as Groq and NVIDIA Build, have free tiers; check their pricing pages).
+Time: about 30 minutes. Cost: Cloudflare's free plan is enough to start. Groq and Gemini offer free-tier usage subject to
+their current quotas and terms; check their pricing pages before deploying.
 
 ---
 
@@ -46,12 +46,9 @@ npm -v
 
 1. **Cloudflare** (required): sign up free at https://dash.cloudflare.com/sign-up and confirm your email.
 2. **GitHub** (optional, for automatic deploys): https://github.com/signup.
-3. **An AI provider** (optional now, you can add it later in the admin panel). Create an API key at one of:
+3. **An AI provider** (optional now, you can add it later in the admin panel). LogicLab supports Groq and Gemini:
    - Groq: https://console.groq.com/keys
-   - OpenRouter: https://openrouter.ai/keys
-   - NVIDIA Build: https://build.nvidia.com (sign in, open a model, "Get API key")
-   - Anthropic (Claude): https://console.anthropic.com
-   - OpenAI: https://platform.openai.com/api-keys
+   - Google Gemini: https://aistudio.google.com/app/apikey
 
    Keep the key private. You will paste it into the admin panel, never into the code.
 
@@ -199,21 +196,16 @@ Open `/admin/` (or the avatar menu in the app, then **Admin panel**). See [ADMIN
 | Stop strangers creating accounts | Settings → Accounts, untick "Anyone can create an account" |
 | Check that everything is configured | System |
 
-AI provider presets and what to know:
+AI provider options:
 
-| Provider | Base URL (already filled in) | Example model |
-| --- | --- | --- |
-| Anthropic (Claude) | https://api.anthropic.com | `claude-sonnet-5-5` |
-| OpenAI | https://api.openai.com/v1 | `gpt-4o-mini` |
-| Groq | https://api.groq.com/openai/v1 | `llama-3.3-70b-versatile` |
-| OpenRouter | https://openrouter.ai/api/v1 | `openai/gpt-4o-mini` |
-| NVIDIA Build | https://integrate.api.nvidia.com/v1 | `meta/llama-3.3-70b-instruct` |
-| Together AI | https://api.together.xyz/v1 | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
-| Custom | any OpenAI-compatible `/v1` address | your model |
+| Provider | Example models |
+| --- | --- |
+| Groq | `llama-3.3-70b-versatile`, `llama-3.1-8b-instant` |
+| Gemini | `gemini-2.5-flash-lite`, `gemini-2.5-flash` |
 
-Model names change over time. If **Test connection** says "model not found", open your provider's model list and copy
-the current name. Choose a model that supports **tool / function calling**, because that is how the assistant builds
-circuits.
+The admin can set one provider as primary and the other as fallback. Provider free-tier quotas and model availability are
+controlled by each provider and can change. Choose a model that supports **tool / function calling**, because that is how the
+assistant builds and tests circuits.
 
 ## Part 9. Updating later
 

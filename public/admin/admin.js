@@ -776,7 +776,7 @@
       const fallbackOptions = (selected, primary) =>
         '<option value="">No second provider</option>' +
         Object.entries(s.providers)
-          .filter(([id]) => id !== primary && id !== 'nvidia')
+          .filter(([id]) => id !== primary)
           .map(
             ([id, provider]) =>
               '<option value="' +
@@ -826,11 +826,6 @@
         '" list="models" autocomplete="off" placeholder="model name"><datalist id="models">' +
         p.models.map((m) => '<option value="' + esc(m) + '">').join('') +
         '</datalist><small id="modelhint"></small></label>' +
-        '<label class="f">Base URL<input class="in" name="baseUrl" value="' +
-        esc(s.baseUrl) +
-        '" placeholder="' +
-        esc(p.base || 'https://your-provider.example/v1') +
-        '" autocomplete="off"><small>Leave empty to use the provider’s default. Custom providers need an OpenAI-compatible URL that ends in /v1.</small></label>' +
         '<label class="f">API key' +
         providerKeyInput(s.provider, 'apiKey', 'Paste ' + p.label + ' API key') +
         '<small>The key is encrypted and never shown again.</small></label>' +
@@ -838,12 +833,12 @@
         '<label class="f">2nd provider<select class="in" name="fallbackProvider">' +
         fallbackOptions(s.fallbackProvider, s.provider) +
         '</select></label>' +
+        '<label class="f">2nd provider model<input class="in" name="fallbackModel" value="' +
+        esc(s.fallbackModel || '') +
+        '" autocomplete="off" placeholder="Uses provider default if empty"><small>Choose the model used when the primary provider is unavailable.</small></label>' +
         '<label class="f">2nd provider API key' +
         providerKeyInput(s.fallbackProvider, 'fallbackApiKey', 'Choose a second provider first') +
-        '</label>' +
-        '<label class="f">3rd provider · NVIDIA Build' +
-        providerKeyInput('nvidia', 'nvidiaApiKey', 'Paste NVIDIA Build API key') +
-        '<small>Used if both the primary and second providers are unavailable.</small></label></div>' +
+        '</label></div>' +
         '<label class="f">Daily AI requests per user<input class="in" type="number" min="1" name="dailyLimit" value="' +
         s.dailyLimit +
         '"></label>' +
@@ -938,7 +933,7 @@
       const fallbackOptions = (selected, primary) =>
         '<option value="">No second provider</option>' +
         Object.entries(VIEWS._providers)
-          .filter(([id]) => id !== primary && id !== 'nvidia')
+          .filter(([id]) => id !== primary)
           .map(
             ([id, provider]) =>
               '<option value="' +
@@ -955,8 +950,11 @@
         const p = VIEWS._providers[selectedProvider];
         const previousFallback = form.elements.fallbackProvider.value;
         form.elements.fallbackProvider.innerHTML = fallbackOptions(previousFallback, selectedProvider);
-        if (form.elements.fallbackProvider.value !== previousFallback)
+        if (form.elements.fallbackProvider.value !== previousFallback) {
           form.elements.fallbackApiKey.value = '';
+          const fallback = form.elements.fallbackProvider.value;
+          form.elements.fallbackModel.value = fallback ? VIEWS._providers[fallback].model : '';
+        }
         form.elements.apiKey.dataset.providerKey = selectedProvider;
         form.elements.apiKey.placeholder = p.hasKey
           ? 'Saved (' + p.keyHint + '). Type a new key to replace it.'
@@ -973,8 +971,6 @@
           ? 'Paste ' + VIEWS._providers[form.elements.fallbackProvider.value].label + ' API key'
           : 'Choose a second provider first';
         form.elements.model.value = p.model;
-        form.elements.baseUrl.value = '';
-        form.elements.baseUrl.placeholder = p.base || 'https://your-provider.example/v1';
         $('#models').innerHTML = p.models.map((m) => '<option value="' + esc(m) + '">').join('');
       });
       form.elements.fallbackProvider.addEventListener('change', () => {
@@ -985,6 +981,7 @@
         form.elements.fallbackApiKey.placeholder = provider
           ? 'Paste ' + VIEWS._providers[provider].label + ' API key'
           : 'Choose a second provider first';
+        form.elements.fallbackModel.value = provider ? VIEWS._providers[provider].model : '';
       });
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -992,11 +989,11 @@
         const body = {
           provider: f.provider.value,
           model: f.model.value,
-          baseUrl: f.baseUrl.value,
           dailyLimit: Number(f.dailyLimit.value),
           aiEnabled: f.aiEnabled.checked
         };
         body.fallbackProvider = f.fallbackProvider.value;
+        body.fallbackModel = f.fallbackModel.value;
         body.providerKeys = {};
         form.querySelectorAll('[data-provider-key]').forEach((input) => {
           if (input.dataset.providerKey && input.value.trim())

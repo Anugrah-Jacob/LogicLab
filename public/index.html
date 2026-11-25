@@ -116,7 +116,7 @@
         }
       ]
     </script>
-    <link rel="stylesheet" href="css/app.css?v=ea3fa4d2" />
+    <link rel="stylesheet" href="css/app.css?v=e33d378b" />
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
@@ -158,6 +158,56 @@
           fill="none"
           stroke="currentColor"
           stroke-width="1.8"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="icon-pan" viewBox="0 0 24 24">
+        <path
+          d="M12 3v18M3 12h18M12 3l-3 3m3-3 3 3M12 21l-3-3m3 3 3-3M3 12l3-3m-3 3 3 3m15-3-3-3m3 3-3 3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="icon-wire" viewBox="0 0 24 24">
+        <path d="M4 18h6V6h5v7h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="4" cy="18" r="2" fill="currentColor" />
+        <circle cx="20" cy="13" r="2" fill="currentColor" />
+      </symbol>
+      <symbol id="icon-pen" viewBox="0 0 24 24">
+        <path
+          d="m4 20 4.5-1 10.8-10.8a2.1 2.1 0 0 0-3-3L5.5 16zM14.8 7.2l3 3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="icon-line" viewBox="0 0 24 24">
+        <path d="M5 19 19 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24">
+        <path d="M5 19 19 5m-8 0h8v8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </symbol>
+      <symbol id="icon-rect" viewBox="0 0 24 24">
+        <rect x="4" y="5" width="16" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+      </symbol>
+      <symbol id="icon-ellipse" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="12" rx="8" ry="6.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+      </symbol>
+      <symbol id="icon-text" viewBox="0 0 24 24">
+        <path d="M4 6h16M12 6v13m-4 0h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      </symbol>
+      <symbol id="icon-erase" viewBox="0 0 24 24">
+        <path
+          d="m8 5 11 11-5 5H8L3 16zM8 5l-5 11m8-3 5 5m-6 3h11"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
           stroke-linejoin="round"
         />
       </symbol>
@@ -254,7 +304,11 @@
         <div class="fl" id="tb">
           <button id="tsel" class="on" title="Select (drag a box to multi-select)" aria-label="Select">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-pointer" /></svg></button
-          ><button id="tpan" title="Pan (drag the canvas)">✥</button><button id="tpal" class="on" title="Show or hide parts">▦</button
+          ><button id="tpan" title="Pan (drag the canvas)" aria-label="Pan">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-pan" /></svg></button
+          ><button id="tw" title="Draw a wire with multiple bends (automatic routing is the default)" aria-label="Wire">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-wire" /></svg></button
+          ><button id="tpal" class="on" title="Show or hide parts">▦</button
           ><button id="tan" class="on" title="Show or hide analysis">◧</button
           ><button id="snp" class="on" title="Snap to invisible grid">⌗</button
           ><button id="tsc" class="on" title="Show or hide waveforms">∿</button>
@@ -309,16 +363,28 @@
           <div id="an"></div>
         </div>
         <p class="mu">
-          Drag output pin → input pin to wire. Right-click or long-press for actions. Shift-click adds to the selection. Ctrl+G groups,
-          Ctrl+Z / Ctrl+Shift+Z undo / redo, Ctrl+S saves.
+          Drag output pin → input pin to wire, or use Wire to place multiple bends. Right-click or long-press for actions. Shift-click adds
+          to the selection. Ctrl+G groups, Ctrl+Z / Ctrl+Shift+Z undo / redo, Ctrl+S saves.
         </p>
       </aside>
     </main>
     <div id="dt">
-      <button data-k="sel" class="on" title="Select">↖</button><button data-k="pen" title="Pen">✎</button
-      ><button data-k="line" title="Line">╱</button><button data-k="arrow" title="Arrow">➚</button
-      ><button data-k="rect" title="Rectangle">▭</button><button data-k="ell" title="Ellipse">◯</button
-      ><button data-k="text" title="Text">T</button><button data-k="erase" title="Eraser (removes drawings)">⌫</button
+      <button data-k="sel" class="on" title="Select" aria-label="Select">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-pointer" /></svg></button
+      ><button data-k="pen" title="Pen" aria-label="Pen">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-pen" /></svg></button
+      ><button data-k="line" title="Line" aria-label="Line">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-line" /></svg></button
+      ><button data-k="arrow" title="Arrow" aria-label="Arrow">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow" /></svg></button
+      ><button data-k="rect" title="Rectangle" aria-label="Rectangle">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-rect" /></svg></button
+      ><button data-k="ell" title="Ellipse" aria-label="Ellipse">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-ellipse" /></svg></button
+      ><button data-k="text" title="Text" aria-label="Text">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-text" /></svg></button
+      ><button data-k="erase" title="Eraser (removes drawings)" aria-label="Eraser">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-erase" /></svg></button
       ><input type="color" id="dc" value="#e8543a" title="Colour" style="width: 34px; height: 30px; padding: 0" /><select
         id="dw"
         title="Thickness"
@@ -326,7 +392,9 @@
         <option value="2">Thin</option>
         <option value="4" selected>Medium</option>
         <option value="8">Thick</option></select
-      ><button id="ly" title="Layers">☰ Layers</button><span class="mu hm">Drawings are saved in the project file</span>
+      ><label title="Fill new rectangles and ellipses"><input type="checkbox" id="dfill" />Fill</label
+      ><input type="color" id="fc" value="#e8543a" title="Shape fill colour" style="width: 34px; height: 30px; padding: 0" />
+      <button id="ly" title="Layers">☰ Layers</button><span class="mu hm">Drawings are saved in the project file</span>
       <div id="lp" hidden></div>
     </div>
     <footer>
@@ -337,6 +405,33 @@
       <canvas id="sc"></canvas>
     </footer>
     <input type="file" id="fi" accept=".json,.gateforge,application/json" hidden />
+    <dialog id="exdlg">
+      <form method="dialog" id="exform">
+        <h3>Custom image export</h3>
+        <fieldset>
+          <legend>Area</legend>
+          <label><input type="radio" name="exscope" value="all" checked /> Whole circuit</label>
+          <label><input type="radio" name="exscope" value="selected" /> Current selection</label>
+        </fieldset>
+        <fieldset>
+          <legend>Include</legend>
+          <label><input type="checkbox" id="exparts" checked /> Parts</label>
+          <label><input type="checkbox" id="exwires" checked /> Wires</label>
+          <label><input type="checkbox" id="exdrawings" checked /> Drawings and text</label>
+        </fieldset>
+        <label
+          >Format
+          <select id="exformat">
+            <option value="png">PNG image</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </label>
+        <div class="ex-actions">
+          <button value="cancel">Cancel</button>
+          <button id="exsubmit" value="export">Export</button>
+        </div>
+      </form>
+    </dialog>
     <div id="wl">
       <aside>
         <div class="lgo">
@@ -598,6 +693,16 @@
         <button>Explain this circuit</button><button>Show truth table</button><button>Generate Verilog</button><button>Quiz me</button>
       </div>
       <form id="af">
+        <label class="ai-mode"
+          >Mode
+          <select id="aimode" aria-label="AI assistant mode">
+            <option value="conversation">Conversation</option>
+            <option value="build">Build circuit</option>
+            <option value="explain">Explain</option>
+            <option value="test">Test</option>
+            <option value="debug">Debug</option>
+          </select>
+        </label>
         <textarea id="aq" rows="1" placeholder="Ask anything about digital electronics…" aria-label="Message LogicLab AI"></textarea
         ><span class="ai-compose-spark" aria-hidden="true">✦</span><button class="pr" id="as" aria-label="Send">➤</button>
       </form>
@@ -608,11 +713,11 @@
       ><button data-n="ai" class="fab" aria-label="LogicLab AI">✦</button><button data-n="wave"><span>∿</span>Waveform</button
       ><button data-n="side"><span>⋯</span>More</button>
     </nav>
-    <script defer src="js/config.js?v=ea3fa4d2"></script>
-    <script defer src="js/examples.js?v=ea3fa4d2"></script>
-    <script defer src="js/ads.js?v=ea3fa4d2"></script>
-    <script defer src="js/app.js?v=ea3fa4d2"></script>
-    <script defer src="js/merge.js?v=ea3fa4d2"></script>
-    <script defer src="js/collab.js?v=ea3fa4d2"></script>
+    <script defer src="js/config.js?v=e33d378b"></script>
+    <script defer src="js/examples.js?v=e33d378b"></script>
+    <script defer src="js/ads.js?v=e33d378b"></script>
+    <script defer src="js/app.js?v=e33d378b"></script>
+    <script defer src="js/merge.js?v=e33d378b"></script>
+    <script defer src="js/collab.js?v=e33d378b"></script>
   </body>
 </html>

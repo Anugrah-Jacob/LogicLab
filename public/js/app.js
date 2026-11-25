@@ -110,8 +110,19 @@
             : n.type == 'NOT' || n.type == 'BUF'
               ? 40
               : Math.max(44, Math.max(nI(n), nO(n)) * 24 + 12);
-  const ip = (n, i) => ({ x: n.x, y: n.y + (hh(n) * (i + 1)) / (nI(n) + 1) }),
-    op = (n, i) => ({ x: n.x + W, y: n.y + (hh(n) * (i + 1)) / (nO(n) + 1) });
+  let drawingNode = null;
+  const nodePoint = (n, p) => {
+      if (drawingNode === n) return p;
+      const s = Math.max(0.25, Math.min(4, Number(n.scale) || 1)),
+        a = ((Number(n.rot) || 0) * Math.PI) / 180,
+        cx = n.x + W / 2,
+        cy = n.y + hh(n) / 2,
+        dx = (p.x - cx) * s,
+        dy = (p.y - cy) * s;
+      return { x: cx + dx * Math.cos(a) - dy * Math.sin(a), y: cy + dx * Math.sin(a) + dy * Math.cos(a) };
+    },
+    ip = (n, i) => nodePoint(n, { x: n.x, y: n.y + (hh(n) * (i + 1)) / (nI(n) + 1) }),
+    op = (n, i) => nodePoint(n, { x: n.x + W, y: n.y + (hh(n) * (i + 1)) / (nO(n) + 1) });
   const ICN = {
     AND2: '74LS08',
     OR2: '74LS32',
@@ -173,6 +184,7 @@
     dirty = true,
     vcc = 5,
     drag = null,
+    handleDrag = null,
     pan = null,
     marq = null,
     hd = null,
@@ -186,7 +198,8 @@
     win = 300,
     tab = 'tt',
     lp = 0,
-    PR = 10;
+    PR = 10,
+    exportNodesHidden = false;
   /** Main power. When false every output is 0 V and nothing is remembered (see powerOffTick). */
   let power = true;
   /**
@@ -270,7 +283,10 @@
       hide: 0,
       r: [0, 0, 0, 0],
       trig: 'R',
-      act: -99
+      act: -99,
+      scale: 1,
+      rot: 0,
+      color: ''
     };
     nodes.push(n);
     reindex();
@@ -280,9 +296,9 @@
   /**
    * Connect output pin `ap` of node `a` to input pin `bp` of node `b` (replaces any wire already on that input).
    */
-  function link(a, ap, b, bp) {
+  function link(a, ap, b, bp, bends) {
     wires = wires.filter((w) => !(w.b == b.id && w.bp == bp));
-    wires.push({ a: a.id, ap, b: b.id, bp });
+    wires.push({ a: a.id, ap, b: b.id, bp, ...(bends && bends.length ? { bends } : {}) });
     reindex();
     dirty = true;
   }
@@ -608,21 +624,46 @@
     }
   }
   function route(w, p, q) {
+    if (w.bends && w.bends.length) {
+      const P = [p];
+      w.bends.forEach((v) => {
+        const prev = P[P.length - 1];
+        P.push({ x: v.x, y: prev.y }, v);
+      });
+      const last = P[P.length - 1],
+        qx = q.x - 16;
+      P.push({ x: qx, y: last.y }, { x: qx, y: q.y }, q);
+      const i = Math.floor(w.bends.length / 2);
+      return { P, h: w.bends[i], hi: i, H: w.bends.map((p, i) => ({ ...p, i })), f: 0 };
+    }
+    if (w.mode == 'straight') {
+      const h = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+      return { P: [p, q], h, hi: -1, H: [{ ...h, i: -1 }] };
+    }
     if (w.via) {
       const v = w.via,
         qx = q.x - 16;
-      return { P: [p, { x: v.x, y: p.y }, v, { x: qx, y: v.y }, { x: qx, y: q.y }, q], h: v, f: 0 };
+      return {
+        P: [p, { x: v.x, y: p.y }, v, { x: qx, y: v.y }, { x: qx, y: q.y }, q],
+        h: v,
+        hi: -1,
+        H: [{ ...v, i: -1 }],
+        f: 0
+      };
     }
     if (q.x > p.x + 24) {
       const m = w.mx ?? (p.x + q.x) / 2;
-      return { P: [p, { x: m, y: p.y }, { x: m, y: q.y }, q], h: { x: m, y: (p.y + q.y) / 2 }, f: 1 };
+      const h = { x: m, y: (p.y + q.y) / 2 };
+      return { P: [p, { x: m, y: p.y }, { x: m, y: q.y }, q], h, hi: -1, H: [{ ...h, i: -1 }], f: 1 };
     }
     const yy = w.my ?? Math.min(p.y, q.y) - 44,
       a = p.x + 16,
       b = q.x - 16;
     return {
       P: [p, { x: a, y: p.y }, { x: a, y: yy }, { x: b, y: yy }, { x: b, y: q.y }, q],
-      h: { x: (a + b) / 2, y: yy }
+      h: { x: (a + b) / 2, y: yy },
+      hi: -1,
+      H: [{ x: (a + b) / 2, y: yy, i: -1 }]
     };
   }
   const clean = (P) => {
@@ -672,7 +713,7 @@
       c.strokeStyle = s ? '#ffb26b' : on ? '#ffd66b' : '#b9812e';
     } else {
       c.lineWidth = on || s ? 3 : 2;
-      c.strokeStyle = s ? cs('--ac') : cs(on ? '--hi' : '--lo');
+      c.strokeStyle = s ? cs('--ac') : w.color || cs(on ? '--hi' : '--lo');
     }
     c.setLineDash(!pcb && on ? [8, 8] : []);
     c.lineDashOffset = -(t / 30) % 16;
@@ -687,13 +728,15 @@
       c.setLineDash([]);
     }
     if (w === selW) {
-      c.beginPath();
-      c.arc(R.h.x, R.h.y, 7, 0, 7);
-      c.fillStyle = cs('--ac');
-      c.fill();
-      c.strokeStyle = '#fff';
-      c.lineWidth = 2;
-      c.stroke();
+      (R.H || [R.h]).forEach((h) => {
+        c.beginPath();
+        c.arc(h.x, h.y, 6, 0, Math.PI * 2);
+        c.fillStyle = cs('--ac');
+        c.fill();
+        c.strokeStyle = '#fff';
+        c.lineWidth = 2;
+        c.stroke();
+      });
     }
   }
   function draw(c, x, m, t) {
@@ -770,7 +813,7 @@
     if (bb) bbDraw(x, t);
     else wires.forEach((w) => wdraw(x, w, pcb, t, bb));
     if (pend) {
-      poly(x, route({}, op(pend.n, pend.i), mouse).P, pcb ? 3 : 12);
+      poly(x, route({ bends: pend.bends }, op(pend.n, pend.i), mouse).P, pcb ? 3 : 12);
       x.lineWidth = 2;
       x.strokeStyle = cs('--ac');
       x.setLineDash([6, 6]);
@@ -779,8 +822,11 @@
     }
     x.textAlign = 'center';
     x.textBaseline = 'middle';
-    if (!bb) nodes.forEach((n) => (pcb ? pcbPart(x, n) : tr ? trPart(x, n) : part(x, n)));
-    if (!bb) nDraw(x);
+    if (!bb && !exportNodesHidden) nodes.forEach((n) => drawNode(x, n, pcb ? pcbPart : tr ? trPart : part));
+    if (!bb) {
+      nDraw(x);
+      drawSelectionHandles(x);
+    }
     if (marq) {
       x.fillStyle = '#ff6d5a22';
       x.strokeStyle = cs('--ac');
@@ -792,9 +838,157 @@
       x.setLineDash([]);
     }
   }
+  function drawNode(c, n, renderer) {
+    const s = Math.max(0.25, Math.min(4, Number(n.scale) || 1)),
+      a = ((Number(n.rot) || 0) * Math.PI) / 180,
+      cx = n.x + W / 2,
+      cy = n.y + hh(n) / 2,
+      prev = drawingNode;
+    c.save();
+    c.translate(cx, cy);
+    c.rotate(a);
+    c.scale(s, s);
+    c.translate(-cx, -cy);
+    drawingNode = n;
+    try {
+      renderer(c, n);
+    } finally {
+      drawingNode = prev;
+      c.restore();
+    }
+  }
+  function nodeBounds(n) {
+    const cx = n.x + W / 2,
+      cy = n.y + hh(n) / 2,
+      pts = [
+        { x: n.x, y: n.y },
+        { x: n.x + W, y: n.y },
+        { x: n.x, y: n.y + hh(n) },
+        { x: n.x + W, y: n.y + hh(n) }
+      ].map((p) => nodePoint(n, p)),
+      X = pts.map((p) => p.x),
+      Y = pts.map((p) => p.y);
+    return [Math.min(...X), Math.min(...Y), Math.max(...X), Math.max(...Y)];
+  }
+  const selectedObjects = () => [
+    ...[...sel].map((n) => ({ kind: 'node', item: n })),
+    ...[...selN].map((n) => ({ kind: 'note', item: n }))
+  ];
+  function drawSelectionHandles(c) {
+    const items = selectedObjects();
+    items.forEach(({ kind, item }) => {
+      const b = kind == 'node' ? nodeBounds(item) : nBox(item),
+        [x0, y0, x1, y1] = b,
+        r = 5 / view.s,
+        pts = [
+          ['nw', x0, y0],
+          ['n', (x0 + x1) / 2, y0],
+          ['ne', x1, y0],
+          ['e', x1, (y0 + y1) / 2],
+          ['se', x1, y1],
+          ['s', (x0 + x1) / 2, y1],
+          ['sw', x0, y1],
+          ['w', x0, (y0 + y1) / 2]
+        ];
+      c.save();
+      c.lineWidth = 1.5 / view.s;
+      c.strokeStyle = '#168cff';
+      c.fillStyle = '#fff';
+      c.setLineDash([]);
+      c.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      pts.forEach(([, x, y]) => {
+        c.fillRect(x - r, y - r, r * 2, r * 2);
+        c.strokeRect(x - r, y - r, r * 2, r * 2);
+      });
+      c.beginPath();
+      c.moveTo((x0 + x1) / 2, y0);
+      c.lineTo((x0 + x1) / 2, y0 - 26 / view.s);
+      c.stroke();
+      c.beginPath();
+      c.arc((x0 + x1) / 2, y0 - 30 / view.s, 5 / view.s, 0, Math.PI * 2);
+      c.fill();
+      c.stroke();
+      c.restore();
+    });
+  }
+  function handleAt(p) {
+    for (const { kind, item } of selectedObjects()) {
+      const b = kind == 'node' ? nodeBounds(item) : nBox(item),
+        [x0, y0, x1, y1] = b,
+        hit = 10 / view.s,
+        cx = (x0 + x1) / 2,
+        cy = (y0 + y1) / 2,
+        rot = { x: cx, y: y0 - 30 / view.s };
+      if (Math.hypot(p.x - rot.x, p.y - rot.y) <= hit)
+        return { kind, item, op: 'rotate', center: { x: cx, y: cy }, angle: Math.atan2(p.y - cy, p.x - cx) };
+      const handles = [
+        ['nw', x0, y0],
+        ['n', cx, y0],
+        ['ne', x1, y0],
+        ['e', x1, cy],
+        ['se', x1, y1],
+        ['s', cx, y1],
+        ['sw', x0, y1],
+        ['w', x0, cy]
+      ];
+      const h = handles.find(([, x, y]) => Math.hypot(p.x - x, p.y - y) <= hit);
+      if (h) return { kind, item, op: 'resize', handle: h[0], bounds: b };
+    }
+    return null;
+  }
+  function moveHandle(p) {
+    const h = handleDrag;
+    if (!h) return;
+    if (h.op == 'rotate') {
+      const angle = Math.atan2(p.y - h.center.y, p.x - h.center.x);
+      h.item.rot = (h.rot + ((angle - h.angle) * 180) / Math.PI + 360) % 360;
+      return;
+    }
+    if (h.kind == 'node') {
+      const b = nodeBounds(h.item),
+        cx = (b[0] + b[2]) / 2,
+        cy = (b[1] + b[3]) / 2,
+        before = Math.hypot(h.start.x - h.center.x, h.start.y - h.center.y),
+        after = Math.hypot(p.x - h.center.x, p.y - h.center.y);
+      h.item.scale = Math.max(0.5, Math.min(2.5, h.scale * (before ? after / before : 1)));
+      return;
+    }
+    const a = h.item,
+      r = h.original;
+    if (a.t == 'pen') {
+      const [x0, y0, x1, y1] = h.bounds,
+        w = Math.max(1, x1 - x0),
+        z = Math.max(1, y1 - y0),
+        dx = p.x - h.start.x,
+        dy = p.y - h.start.y,
+        sx = Math.max(
+          0.05,
+          Math.abs(w + (h.handle.includes('e') ? dx : h.handle.includes('w') ? -dx : 0)) / w
+        ),
+        sy = Math.max(
+          0.05,
+          Math.abs(z + (h.handle.includes('s') ? dy : h.handle.includes('n') ? -dy : 0)) / z
+        );
+      a.p = r.p.map(([x, y]) => [
+        h.handle.includes('w') ? x1 + (x - x1) * sx : x0 + (x - x0) * sx,
+        h.handle.includes('n') ? y1 + (y - y1) * sy : y0 + (y - y0) * sy
+      ]);
+    } else {
+      const dx = p.x - h.start.x,
+        dy = p.y - h.start.y;
+      if (h.handle.includes('w')) a.x0 = r.x0 + dx;
+      if (h.handle.includes('e')) a.x1 = r.x1 + dx;
+      if (h.handle.includes('n')) a.y0 = r.y0 + dy;
+      if (h.handle.includes('s')) a.y1 = r.y1 + dy;
+      if (a.t == 'text') a.fs = Math.max(8, Math.min(120, r.fs + (h.handle.includes('s') ? dy : 0)));
+    }
+  }
   function bbox(mx, my) {
     const R = nodes
-      .map((n) => [n.x, n.y, n.x + W + 30, n.y + hh(n) + 10])
+      .map((n) => {
+        const b = nodeBounds(n);
+        return [b[0], b[1], b[2] + 30, b[3] + 10];
+      })
       .concat(
         notes
           .filter((a) => {
@@ -842,7 +1036,7 @@
       d = DEF[t];
     c.lineWidth = sl ? 3 : 2;
     c.strokeStyle = sl ? cs('--ac') : cs('--tx');
-    c.fillStyle = cs('--pn');
+    c.fillStyle = n.color || cs('--pn');
     c.lineJoin = 'round';
     c.font = '600 13px system-ui,sans-serif';
     if (sl) {
@@ -2495,11 +2689,72 @@
       n = one();
     if (selW && !sel.size) {
       e.innerHTML =
-        '<p class="mu">Wire selected. Drag anywhere on it to move it; the route adapts.</p><button id="rr">Reset route</button> <button id="dl">Delete wire</button>';
+        '<p class="mu">Drag a wire segment or its bend handles to change the route.</p><label>Color <input type="color" id="wcolor" value="' +
+        (/^#[\da-f]{6}$/i.test(selW.color || '') ? selW.color : '#718096') +
+        '"></label><label>Route <select id="wmode"><option value="orthogonal">Orthogonal</option><option value="straight">Straight</option></select></label><button id="rr">Reset route</button> <button id="dl">Delete wire</button>';
+      $('#wcolor').oninput = (ev) => {
+        selW.color = ev.target.value;
+        dirty = true;
+      };
+      $('#wmode').value = selW.mode == 'straight' ? 'straight' : 'orthogonal';
+      $('#wmode').onchange = (ev) => {
+        selW.mode = ev.target.value;
+        if (selW.mode == 'straight') delete selW.bends;
+        commit();
+      };
       $('#rr').onclick = () => {
         delete selW.mx;
         delete selW.my;
         delete selW.via;
+        delete selW.bends;
+        delete selW.mode;
+      };
+      $('#dl').onclick = delSel;
+      return;
+    }
+    if (!sel.size && selN.size == 1) {
+      const a = [...selN][0];
+      e.innerHTML =
+        (a.t == 'text'
+          ? '<label>Text size <input type="number" id="tsz" min="8" max="120" value="' +
+            a.fs +
+            '" style="width:64px"></label>'
+          : '') +
+        '<label>Border <input type="color" id="nbc" value="' +
+        (a.bc || a.c || '#e8543a') +
+        '"></label>' +
+        (['rect', 'ell'].includes(a.t)
+          ? '<label><input type="checkbox" id="nfill"' +
+            (a.fillOn ? ' checked' : '') +
+            '> Fill shape</label><label>Fill <input type="color" id="nfc" value="' +
+            (a.fc || '#e8543a') +
+            '"></label>'
+          : '') +
+        '<label>Line weight <input type="number" id="nwgt" min="1" max="20" value="' +
+        a.w +
+        '" style="width:64px"></label><button id="dl">Delete drawing</button>';
+      if (a.t == 'text')
+        $('#tsz').oninput = (ev) => {
+          a.fs = Math.max(8, Math.min(120, +ev.target.value || 8));
+          dirty = true;
+        };
+      $('#nbc').oninput = (ev) => {
+        a.bc = a.c = ev.target.value;
+        dirty = true;
+      };
+      if ($('#nfill')) {
+        $('#nfill').onchange = (ev) => {
+          a.fillOn = ev.target.checked;
+          dirty = true;
+        };
+        $('#nfc').oninput = (ev) => {
+          a.fc = ev.target.value;
+          dirty = true;
+        };
+      }
+      $('#nwgt').oninput = (ev) => {
+        a.w = Math.max(1, Math.min(20, +ev.target.value || 1));
+        dirty = true;
       };
       $('#dl').onclick = delSel;
       return;
@@ -2552,7 +2807,17 @@
       (DEF[n.type].ff
         ? '<label>Trigger <select id="tg"><option value="R">Rising edge ↑</option><option value="F">Falling edge ↓</option><option value="H">Level high</option><option value="L">Level low</option></select></label>'
         : '') +
+      (isG(n)
+        ? '<label>Gate color <input type="color" id="ncolor" value="' +
+          (/^#[\da-f]{6}$/i.test(n.color || '') ? n.color : '#dce6f1') +
+          '"></label>'
+        : '') +
       (p ? '<label><input type="checkbox" id="pb"> Show on scope</label>' : '') +
+      '<label>Scale <input type="range" id="nscale" min="0.5" max="2.5" step="0.1" value="' +
+      (n.scale || 1) +
+      '" style="width:100px"></label><label>Rotate <input type="number" id="nrot" min="-360" max="360" value="' +
+      (n.rot || 0) +
+      '" style="width:64px">°</label>' +
       (isG(n) || DEF[n.type].ff ? '<p class="mu" id="ic"></p>' : '') +
       '<button id="dl">Delete part</button>';
     $('#nm').value = n.name;
@@ -2560,6 +2825,19 @@
       n.name = ev.target.value;
       dirty = true;
     };
+    $('#nscale').oninput = (ev) => {
+      n.scale = Math.max(0.5, Math.min(2.5, +ev.target.value || 1));
+      dirty = true;
+    };
+    $('#nrot').oninput = (ev) => {
+      n.rot = Math.max(-360, Math.min(360, +ev.target.value || 0));
+      dirty = true;
+    };
+    if ($('#ncolor'))
+      $('#ncolor').oninput = (ev) => {
+        n.color = ev.target.value;
+        dirty = true;
+      };
     const ic = () => {
       if ($('#ic')) $('#ic').textContent = 'PCB part: ' + IC(n);
     };
@@ -2619,6 +2897,31 @@
     reindex();
     changed();
   }
+  function autoRouteSelectedWires() {
+    const ids = new Set([...sel].map((n) => n.id)),
+      affected = wires.filter((w) => ids.has(w.a) && ids.has(w.b));
+    if (!affected.length) {
+      toast('Select at least two connected parts to auto-route their wires.', 'info');
+      return;
+    }
+    affected.forEach((w) => {
+      delete w.mx;
+      delete w.my;
+      delete w.via;
+      delete w.bends;
+      delete w.mode;
+    });
+    changed();
+    toast('Auto-routed ' + affected.length + ' selected wire(s). Gates were not moved.', 'success');
+  }
+  function autoRouteWire(w) {
+    delete w.mx;
+    delete w.my;
+    delete w.via;
+    delete w.bends;
+    delete w.mode;
+    changed();
+  }
   /**
    * Duplicate the selection (parts, internal wires, drawings and groups).
    */
@@ -2626,13 +2929,30 @@
     const map = new Map();
     [...sel].forEach((n) => {
       const c = add(n.type, n.x + 30, n.y + 30);
-      Object.assign(c, { nin: n.nin, per: n.per, v: n.v, trig: n.trig });
-      c.name = n.name + '’';
+      Object.assign(c, JSON.parse(JSON.stringify(n)), {
+        id: c.id,
+        x: n.x + 30,
+        y: n.y + 30,
+        name: n.name + '’'
+      });
       map.set(n.id, c);
     });
     wires
       .filter((w) => map.has(w.a) && map.has(w.b))
-      .forEach((w) => link(map.get(w.a), w.ap, map.get(w.b), w.bp));
+      .forEach((w) => {
+        const a = map.get(w.a),
+          b = map.get(w.b);
+        link(a, w.ap, b, w.bp);
+        const copy = JSON.parse(JSON.stringify(w)),
+          created = wires.find((x) => x.a == a.id && x.ap == w.ap && x.b == b.id && x.bp == w.bp);
+        copy.a = a.id;
+        copy.b = b.id;
+        if (copy.bends) copy.bends = copy.bends.map((p) => ({ x: p.x + 30, y: p.y + 30 }));
+        if (copy.via) copy.via = { x: copy.via.x + 30, y: copy.via.y + 30 };
+        if (copy.mx != null) copy.mx += 30;
+        if (copy.my != null) copy.my += 30;
+        Object.assign(created, copy);
+      });
     const nm = new Map();
     [...selN].forEach((a) => {
       const c = JSON.parse(JSON.stringify(a));
@@ -2681,7 +3001,15 @@
   function nodeAt(p) {
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
-      if (p.x >= n.x && p.x <= n.x + W && p.y >= n.y && p.y <= n.y + hh(n)) return n;
+      const s = Math.max(0.25, Math.min(4, Number(n.scale) || 1)),
+        a = (-(Number(n.rot) || 0) * Math.PI) / 180,
+        cx = n.x + W / 2,
+        cy = n.y + hh(n) / 2,
+        dx = (p.x - cx) / s,
+        dy = (p.y - cy) / s,
+        x = cx + dx * Math.cos(a) - dy * Math.sin(a),
+        y = cy + dx * Math.sin(a) + dy * Math.cos(a);
+      if (x >= n.x && x <= n.x + W && y >= n.y && y <= n.y + hh(n)) return n;
     }
   }
   function pinHit(p) {
@@ -2727,6 +3055,28 @@
       const o = one(),
         it = [
           ['Duplicate', dup],
+          [
+            'Rotate 90°',
+            () => {
+              sel.forEach((q) => (q.rot = ((q.rot || 0) + 90) % 360));
+              changed();
+            }
+          ],
+          [
+            'Scale up',
+            () => {
+              sel.forEach((q) => (q.scale = Math.min(2.5, (q.scale || 1) + 0.1)));
+              changed();
+            }
+          ],
+          [
+            'Scale down',
+            () => {
+              sel.forEach((q) => (q.scale = Math.max(0.5, (q.scale || 1) - 0.1)));
+              changed();
+            }
+          ],
+          ...(sel.size > 1 ? [['Auto arrange selected wires', autoRouteSelectedWires]] : []),
           ['Group', group],
           ['Ungroup', ungroup],
           ['Delete', delSel],
@@ -2776,12 +3126,31 @@
       changed();
       menu(x, y, [
         ['Delete wire', delSel],
+        ['Auto-route wire', () => autoRouteWire(w)],
+        [
+          'Add bend here',
+          () => {
+            w.bends = (w.bends || []).concat({ x: gs(p.x), y: gs(p.y) });
+            delete w.via;
+            changed();
+          }
+        ],
+        [
+          w.mode == 'straight' ? 'Use orthogonal route' : 'Use straight route',
+          () => {
+            w.mode = w.mode == 'straight' ? 'orthogonal' : 'straight';
+            changed();
+          }
+        ],
         [
           'Reset route',
           () => {
             delete w.mx;
             delete w.my;
             delete w.via;
+            delete w.bends;
+            delete w.mode;
+            changed();
           }
         ]
       ]);
@@ -2795,6 +3164,31 @@
           changed();
         }
         menu(x, y, [
+          ...(a.t == 'text'
+            ? [
+                [
+                  'Rotate text 90°',
+                  () => {
+                    a.rot = ((a.rot || 0) + 90) % 360;
+                    changed();
+                  }
+                ],
+                [
+                  'Increase text size',
+                  () => {
+                    a.fs = Math.min(120, a.fs + 2);
+                    changed();
+                  }
+                ],
+                [
+                  'Decrease text size',
+                  () => {
+                    a.fs = Math.max(8, a.fs - 2);
+                    changed();
+                  }
+                ]
+              ]
+            : []),
           ['Duplicate', dup],
           ['Group', group],
           ['Ungroup', ungroup],
@@ -2815,7 +3209,7 @@
       const r = k.getBoundingClientRect(),
         x = cx ?? r.width / 2,
         y = cy ?? r.height / 2,
-        s = Math.max(0.15, Math.min(3, view.s * f)),
+        s = Math.max(0.01, Math.min(10000, view.s * f)),
         q = s / view.s;
       view.x = x - (x - view.x) * q;
       view.y = y - (y - view.y) * q;
@@ -2870,7 +3264,15 @@
   addEventListener('blur', () => [...held.keys()].forEach(releaseBtn));
   /* ---------- pointer ---------- */
   const ptr = new Map();
-  let pd = 0;
+  let pd = 0,
+    spacePan = false;
+  addEventListener('keydown', (e) => {
+    if (e.code == 'Space' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName))
+      spacePan = true;
+  });
+  addEventListener('keyup', (e) => {
+    if (e.code == 'Space') spacePan = false;
+  });
   function bind(c) {
     const pos = (e) => {
       const r = c.getBoundingClientRect();
@@ -2881,6 +3283,11 @@
       if (e.button == 2) return;
       c.setPointerCapture(e.pointerId);
       ptr.set(e.pointerId, e);
+      if (e.button == 1 || (spacePan && e.button == 0)) {
+        e.preventDefault();
+        pan = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
+        return;
+      }
       PR = e.pointerType == 'touch' ? 16 : 10;
       if (ptr.size == 2) {
         drag = marq = pan = hd = null;
@@ -2914,6 +3321,23 @@
       const p = (mouse = pos(e)),
         ph = pinHit(p),
         add_ = e.shiftKey || e.ctrlKey || e.metaKey;
+      if (tool == 'sel') {
+        const h = handleAt(p);
+        if (h) {
+          handleDrag = {
+            ...h,
+            start: p,
+            scale: h.item.scale || 1,
+            rot: h.item.rot || 0,
+            original: JSON.parse(JSON.stringify(h.item))
+          };
+          if (h.kind == 'node') {
+            const b = nodeBounds(h.item);
+            handleDrag.center = { x: (b[0] + b[2]) / 2, y: (b[1] + b[3]) / 2 };
+          }
+          return;
+        }
+      }
       if (e.pointerType == 'touch') {
         clearTimeout(lp);
         lp = setTimeout(() => {
@@ -2924,13 +3348,26 @@
         const a = idm.get(selW.a),
           b = idm.get(selW.b);
         if (a && b) {
-          const h = route(selW, op(a, selW.ap), ip(b, selW.bp)).h;
-          if (Math.hypot(h.x - p.x, h.y - p.y) < 12) {
+          const R = route(selW, op(a, selW.ap), ip(b, selW.bp)),
+            h = (R.H || [{ ...R.h, i: R.hi }]).find((q) => Math.hypot(q.x - p.x, q.y - p.y) < 12 / view.s);
+          if (h) {
             hd = selW;
             hd.s0 = p;
+            hd.hi = h.i;
             return;
           }
         }
+      }
+      if (tool == 'wire') {
+        if (ph && ph.out && !pend) pend = { n: ph.n, i: ph.i, bends: [] };
+        else if (pend && ph && !ph.out) {
+          link(pend.n, pend.i, ph.n, ph.i, pend.bends);
+          pend = null;
+        } else if (pend) {
+          pend.bends.push({ x: gs(p.x), y: gs(p.y) });
+          dirty = true;
+        }
+        return;
       }
       if (pend) {
         if (ph && !ph.out) {
@@ -2969,6 +3406,11 @@
         drag = {
           hit: n,
           L: [...sel].map((q) => [q, q.x, q.y]),
+          W: wires
+            .filter(
+              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.mx || w.my)
+            )
+            .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, mx: w.mx, my: w.my })]),
           N: [...selN].map((a) => [a, JSON.stringify(a)]),
           px: p.x,
           py: p.y,
@@ -2994,6 +3436,11 @@
           hit: na,
           isN: 1,
           L: [...sel].map((q) => [q, q.x, q.y]),
+          W: wires
+            .filter(
+              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.mx || w.my)
+            )
+            .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, mx: w.mx, my: w.my })]),
           N: [...selN].map((a) => [a, JSON.stringify(a)]),
           px: p.x,
           py: p.y,
@@ -3040,13 +3487,24 @@
         return;
       }
       const p = (mouse = pos(e));
+      if (handleDrag) {
+        moveHandle(p);
+        return;
+      }
       if (dr) {
-        nMove(p);
+        nMove(p, e);
         return;
       }
       if (hd) {
-        if (Math.hypot(p.x - hd.s0.x, p.y - hd.s0.y) > 4)
-          hd.via = { x: Math.round(p.x / 6) * 6, y: Math.round(p.y / 6) * 6 };
+        if (Math.hypot(p.x - hd.s0.x, p.y - hd.s0.y) > 4) {
+          const bend = { x: gs(p.x), y: gs(p.y) };
+          if (hd.hi >= 0) hd.bends[hd.hi] = bend;
+          else {
+            hd.bends = [bend];
+            delete hd.via;
+            delete hd.mode;
+          }
+        }
         return;
       }
       if (drag) {
@@ -3062,6 +3520,13 @@
           const dx = gs(p.x - drag.px),
             dy = gs(p.y - drag.py);
           (drag.N || []).forEach(([a, o]) => mvNote(a, JSON.parse(o), dx, dy));
+          (drag.W || []).forEach(([w, o]) => {
+            const r = JSON.parse(o);
+            if (r.bends) w.bends = r.bends.map((v) => ({ x: v.x + dx, y: v.y + dy }));
+            if (r.via) w.via = { x: r.via.x + dx, y: r.via.y + dy };
+            if (r.mx != null) w.mx = r.mx + dx;
+            if (r.my != null) w.my = r.my + dy;
+          });
         }
       }
       if (marq) {
@@ -3076,7 +3541,8 @@
           selN = new Set();
         }
         nodes.forEach((n) => {
-          if (n.x < b && n.x + W > a && n.y < d && n.y + hh(n) > c0) sel.add(n);
+          const box = nodeBounds(n);
+          if (box[0] < b && box[2] > a && box[1] < d && box[3] > c0) sel.add(n);
         });
         notes.forEach((q) => {
           const bx = nBox(q);
@@ -3097,6 +3563,11 @@
       const p = pos(e);
       if (dr) {
         nEnd();
+        return;
+      }
+      if (handleDrag) {
+        handleDrag = null;
+        changed();
         return;
       }
       if (pend && Math.hypot(p.x - pend.sx, p.y - pend.sy) > 14) {
@@ -3272,6 +3743,7 @@
   tg('#tsc', (o) => document.body.classList.toggle('hf', !o));
   $('#tsel').onclick = () => setTool('sel');
   $('#tpan').onclick = () => setTool('pan');
+  $('#tw').onclick = () => setTool('wire');
   $('#sim').onclick = () => {
     run = !run;
     $('#sim').textContent = run ? '❚❚ Pause' : '▶ Run';
@@ -3301,8 +3773,8 @@
     load(cur);
     e.target.value = '';
   };
-  $('#zo').onclick = () => zoom(0.85);
-  $('#zi').onclick = () => zoom(1.18);
+  $('#zo').onclick = () => zoom(0.8);
+  $('#zi').onclick = () => zoom(1.25);
   $('#zf').onclick = fitView;
   /* ---------- examples (data-driven: see js/examples.js) ---------- */
   let cur = '';
@@ -3616,7 +4088,10 @@
     act: -99,
     nin: 2,
     probe: 0,
-    hide: 0
+    hide: 0,
+    scale: 1,
+    rot: 0,
+    color: ''
   };
   window.LogicLabHost = {
     /** The structural document (parts, wires, groups, drawings, layers) plus the project name. */
@@ -3677,12 +4152,17 @@
             byId.set(id, n);
           }
         } else if (kind == 'w') {
-          const [a, ap, b, bp] = key.split(':').map(Number),
-            has = wires.some((w) => w.a == a && w.ap == ap && w.b == b && w.bp == bp);
+          const [a, ap, b, bp] = key.split(':').map(Number);
           if (v === null) wires = wires.filter((w) => !(w.a == a && w.ap == ap && w.b == b && w.bp == bp));
-          else if (!has && byId.has(a) && byId.has(b)) {
-            wires = wires.filter((w) => !(w.b == b && w.bp == bp));
-            wires.push({ a, ap, b, bp });
+          else if (byId.has(a) && byId.has(b)) {
+            const incoming =
+              v && typeof v === 'object' && !Array.isArray(v)
+                ? Object.assign({}, v, { a, ap, b, bp })
+                : { a, ap, b, bp };
+            wires = wires.filter(
+              (w) => (w.b != b || w.bp != bp) && !(w.a == a && w.ap == ap && w.b == b && w.bp == bp)
+            );
+            wires.push(incoming);
           }
         } else if (kind == 'a') {
           const id = +key,
@@ -3782,6 +4262,7 @@
     download(type) {
       if (type === 'proj') save();
       else if (type === 'png' || type === 'pdf') expImg(type === 'pdf');
+      else if (type === 'custom') $('#exdlg').showModal();
     }
   };
 
@@ -3911,7 +4392,7 @@
   function gbox(c, gr) {
     const P = gr.ids.map((i) => idm.get(i)).filter(Boolean),
       A = (gr.nids || []).map((i) => notes.find((a) => a.id == i)).filter(Boolean),
-      R = P.map((n) => [n.x, n.y, n.x + W, n.y + hh(n)]).concat(A.map(nBox));
+      R = P.map(nodeBounds).concat(A.map(nBox));
     if (!R.length) return;
     const x0 = Math.min(...R.map((r) => r[0])) - 18,
       y0 = Math.min(...R.map((r) => r[1])) - 26,
@@ -3935,7 +4416,22 @@
     c.fillText(gr.name, x0 + 10, y0 + 6);
     c.restore();
   }
-  const FLD = ['id', 'type', 'x', 'y', 'name', 'nin', 'per', 'trig', 'probe', 'hide', 'mom'];
+  const FLD = [
+    'id',
+    'type',
+    'x',
+    'y',
+    'name',
+    'nin',
+    'per',
+    'trig',
+    'probe',
+    'hide',
+    'mom',
+    'scale',
+    'rot',
+    'color'
+  ];
   function snapDoc(rt) {
     return {
       nodes: nodes.map((n) => {
@@ -4031,7 +4527,10 @@
             act: -99,
             nin: 2,
             probe: 0,
-            hide: 0
+            hide: 0,
+            scale: 1,
+            rot: 0,
+            color: ''
           },
           x
         ),
@@ -4100,27 +4599,57 @@
     tool = t;
     $('#tsel').classList.toggle('on', t == 'sel');
     $('#tpan').classList.toggle('on', t == 'pan');
+    $('#tw').classList.toggle('on', t == 'wire');
     document.querySelectorAll('#dt [data-k]').forEach((b) => b.classList.toggle('on', b.dataset.k == t));
     [cv, pc].forEach((c) => curUpd(c, { clientX: -9e3, clientY: -9e3 }));
   }
   $('#dt').onclick = (e) => {
-    const k = e.target.dataset.k;
+    const k = e.target.closest('[data-k]')?.dataset.k;
     if (k) setTool(k);
   };
   $('#ly').onclick = () => {
     $('#lp').hidden = !$('#lp').hidden;
     lyr();
   };
-  function nBox(a) {
+  function rawNBox(a) {
     if (a.t == 'pen') {
       const X = a.p.map((q) => q[0]),
         Y = a.p.map((q) => q[1]);
       return [Math.min(...X), Math.min(...Y), Math.max(...X), Math.max(...Y)];
     }
-    if (a.t == 'text') return [a.x0, a.y0, a.x0 + a.s.length * a.fs * 0.6, a.y0 + a.fs];
+    if (a.t == 'text') {
+      const w = a.s.length * a.fs * 0.6,
+        h = a.fs;
+      return [a.x0, a.y0, a.x0 + w, a.y0 + h];
+    }
     return [Math.min(a.x0, a.x1), Math.min(a.y0, a.y1), Math.max(a.x0, a.x1), Math.max(a.y0, a.y1)];
   }
+  function nBox(a) {
+    const b = rawNBox(a),
+      cx = (b[0] + b[2]) / 2,
+      cy = (b[1] + b[3]) / 2,
+      r = ((a.rot || 0) * Math.PI) / 180,
+      pts = [
+        [b[0], b[1]],
+        [b[2], b[1]],
+        [b[0], b[3]],
+        [b[2], b[3]]
+      ].map(([x, y]) => ({
+        x: cx + (x - cx) * Math.cos(r) - (y - cy) * Math.sin(r),
+        y: cy + (x - cx) * Math.sin(r) + (y - cy) * Math.cos(r)
+      })),
+      X = pts.map((p) => p.x),
+      Y = pts.map((p) => p.y);
+    return [Math.min(...X), Math.min(...Y), Math.max(...X), Math.max(...Y)];
+  }
   function nHit(a, p) {
+    const b0 = rawNBox(a),
+      cx = (b0[0] + b0[2]) / 2,
+      cy = (b0[1] + b0[3]) / 2,
+      r = (-(a.rot || 0) * Math.PI) / 180,
+      dx = p.x - cx,
+      dy = p.y - cy;
+    p = { x: cx + dx * Math.cos(r) - dy * Math.sin(r), y: cy + dx * Math.sin(r) + dy * Math.cos(r) };
     const t = 7 + a.w;
     if (a.t == 'pen') {
       for (let i = 0; i < a.p.length - 1; i++)
@@ -4128,9 +4657,11 @@
       return a.p.length == 1 && Math.hypot(p.x - a.p[0][0], p.y - a.p[0][1]) < t;
     }
     if (a.t == 'line' || a.t == 'arrow') return segD(p, { x: a.x0, y: a.y0 }, { x: a.x1, y: a.y1 }) < t;
-    const b = nBox(a),
+    const b = rawNBox(a),
       i = p.x >= b[0] - t && p.x <= b[2] + t && p.y >= b[1] - t && p.y <= b[3] + t;
-    return a.t == 'text' ? i : i && !(p.x > b[0] + t && p.x < b[2] - t && p.y > b[1] + t && p.y < b[3] - t);
+    return a.t == 'text' || a.fillOn
+      ? i
+      : i && !(p.x > b[0] + t && p.x < b[2] - t && p.y > b[1] + t && p.y < b[3] - t);
   }
   const lyOK = (l) => l && l.vis && !l.lock;
   function nErase(p) {
@@ -4162,11 +4693,15 @@
       t: tool,
       l: actL,
       c: $('#dc').value,
+      bc: $('#dc').value,
+      fc: $('#fc').value,
+      fillOn: $('#dfill').checked,
       w: +$('#dw').value,
       x0: p.x,
       y0: p.y,
       x1: p.x,
-      y1: p.y
+      y1: p.y,
+      rot: 0
     };
     if (tool == 'text') {
       const s = prompt('Text:');
@@ -4182,15 +4717,32 @@
     notes.push(a);
     dr = a;
   }
-  function nMove(p) {
+  function nMove(p, e) {
     if (dr.er) {
       nErase(p);
       return;
     }
     if (dr.t == 'pen') dr.p.push([p.x, p.y]);
     else {
-      dr.x1 = p.x;
-      dr.y1 = p.y;
+      let x = p.x,
+        y = p.y;
+      if (e.shiftKey && ['line', 'arrow'].includes(dr.t)) {
+        const dx = x - dr.x0,
+          dy = y - dr.y0,
+          step = Math.PI / 4,
+          angle = Math.round(Math.atan2(dy, dx) / step) * step,
+          length = Math.hypot(dx, dy);
+        x = dr.x0 + length * Math.cos(angle);
+        y = dr.y0 + length * Math.sin(angle);
+      } else if (e.shiftKey && ['rect', 'ell'].includes(dr.t)) {
+        const dx = x - dr.x0,
+          dy = y - dr.y0,
+          side = Math.max(Math.abs(dx), Math.abs(dy));
+        x = dr.x0 + Math.sign(dx || 1) * side;
+        y = dr.y0 + Math.sign(dy || 1) * side;
+      }
+      dr.x1 = x;
+      dr.y1 = y;
     }
   }
   function nEnd() {
@@ -4204,7 +4756,15 @@
       if (!L.vis) return;
       notes.forEach((a) => {
         if (a.l != L.id) return;
-        x.strokeStyle = x.fillStyle = a.c;
+        const raw = rawNBox(a),
+          cx = (raw[0] + raw[2]) / 2,
+          cy = (raw[1] + raw[3]) / 2;
+        x.save();
+        x.translate(cx, cy);
+        x.rotate(((a.rot || 0) * Math.PI) / 180);
+        x.translate(-cx, -cy);
+        x.strokeStyle = a.bc || a.c;
+        x.fillStyle = a.fc || a.c;
         x.lineWidth = a.w;
         x.lineCap = x.lineJoin = 'round';
         x.setLineDash([]);
@@ -4219,10 +4779,11 @@
           x.textBaseline = 'top';
           x.fillText(a.s, a.x0, a.y0);
         } else if (a.t == 'rect') {
-          const b = nBox(a);
+          const b = rawNBox(a);
+          if (a.fillOn) x.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
           x.strokeRect(b[0], b[1], b[2] - b[0], b[3] - b[1]);
         } else if (a.t == 'ell') {
-          const b = nBox(a);
+          const b = rawNBox(a);
           x.ellipse(
             (b[0] + b[2]) / 2,
             (b[1] + b[3]) / 2,
@@ -4232,6 +4793,7 @@
             0,
             7
           );
+          if (a.fillOn) x.fill();
           x.stroke();
         } else {
           x.moveTo(a.x0, a.y0);
@@ -4248,6 +4810,7 @@
             x.fill();
           }
         }
+        x.restore();
       });
     });
     selN.forEach((a) => {
@@ -4506,13 +5069,61 @@
     pu(en(t + 'trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n' + xr + '\n%%EOF'));
     return new Blob(P, { type: 'application/pdf' });
   }
-  function expImg(pdf) {
-    const B = bbox(40, 40),
-      s = Math.min(2, 3200 / B.w),
-      c = snapCanvas(Math.ceil(B.w * s), Math.ceil(B.h * s), vw[0] == 'bb' ? 'sch' : vw[0], s);
-    if (pdf) dl(pdfFrom(c), fname('.pdf'));
-    else c.toBlob((b) => dl(b, fname('.png')));
+  function expImg(pdf, options) {
+    const old = options && { nodes, wires, notes, groups, exportNodesHidden };
+    if (options) {
+      const selectedIds = new Set([...sel].map((n) => n.id)),
+        selectedWire = selW && !selectedIds.size ? selW : null,
+        scope = options.scope;
+      nodes =
+        scope == 'selected'
+          ? selectedWire
+            ? [idm.get(selectedWire.a), idm.get(selectedWire.b)].filter(Boolean)
+            : nodes.filter((n) => selectedIds.has(n.id))
+          : nodes;
+      wires = options.wires
+        ? scope == 'selected'
+          ? selectedWire
+            ? [selectedWire]
+            : wires.filter((w) => selectedIds.has(w.a) && selectedIds.has(w.b))
+          : wires
+        : [];
+      notes = options.drawings ? (scope == 'selected' ? notes.filter((a) => selN.has(a)) : notes) : [];
+      groups = [];
+      exportNodesHidden = !options.parts;
+      if (!options.parts && !wires.length) nodes = [];
+      if (!nodes.length && !notes.length) {
+        if (old) ({ nodes, wires, notes, groups, exportNodesHidden } = old);
+        toast('Choose at least one visible item to export.', 'info');
+        return;
+      }
+    }
+    try {
+      const B = bbox(40, 40),
+        s = Math.min(2, 3200 / B.w),
+        c = snapCanvas(Math.ceil(B.w * s), Math.ceil(B.h * s), vw[0] == 'bb' ? 'sch' : vw[0], s);
+      if (pdf) dl(pdfFrom(c), fname('.pdf'));
+      else c.toBlob((b) => dl(b, fname('.png')));
+    } finally {
+      if (old) {
+        ({ nodes, wires, notes, groups, exportNodesHidden } = old);
+        reindex();
+      }
+    }
   }
+  $('#exform').addEventListener('submit', (e) => {
+    if (e.submitter && e.submitter.value != 'export') return;
+    e.preventDefault();
+    const options = {
+        scope: $('#exform [name=exscope]:checked').value,
+        parts: $('#exparts').checked,
+        wires: $('#exwires').checked,
+        drawings: $('#exdrawings').checked
+      },
+      pdf = $('#exformat').value == 'pdf';
+    $('#exdlg').close();
+    expImg(pdf, options);
+  });
   $('#mdl').onchange = (e) => {
     RV = e.target.value == '1';
     nodes.forEach((n) => {
@@ -4728,7 +5339,7 @@
     else if (tool == 'pan') k = 'grab';
     else if (DT.includes(tool)) k = tool == 'text' ? 'ibeam' : 'cross';
     else if (drag && drag.m) k = 'move';
-    else if (pend) k = 'wire';
+    else if (pend || tool == 'wire') k = 'wire';
     else if ((c === cv ? vw[0] : vw[1]) != 'bb') {
       view = V[c === cv ? 0 : 1];
       const r = c.getBoundingClientRect(),
@@ -5180,7 +5791,7 @@
   const isOn = () => USER && navigator.onLine;
   function syncSoon() {
     clearTimeout(syncT);
-    if (isOn()) syncT = setTimeout(syncAll, 2500);
+    if (isOn()) syncT = setTimeout(syncAll, 120000);
   }
   /**
    * Save the open project on this device (only when something changed) and schedule a cloud sync.
@@ -5307,7 +5918,7 @@
   });
   setInterval(() => {
     if (isOn()) syncAll();
-  }, 60000);
+  }, 120000);
   if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
     addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   /* ---- welcome screen ---- */
@@ -5520,7 +6131,7 @@
       if (!visible) {
         const timer = setTimeout(resolve, seconds * 1000);
         node.className = 'bb a ai-working';
-        node.innerHTML = DOTS;
+        node.innerHTML = '<span>Retrying…</span>' + DOTS;
         node._hiddenRetryTimer = timer;
         return;
       }
@@ -5559,29 +6170,27 @@
       }
     }
   }
-  function showAIError(error, step, requestBody, workflow) {
+  function showAIError(error, step, requestBody, node) {
     const message = 'The AI service is temporarily unavailable. Please try again.';
     const retryable =
       !error.status ||
       [502, 503, 504].includes(error.status) ||
       (error.status === 429 && error.retryAfter > 0);
-    const node = aiAdd(
-      'err',
+    node.className = 'bb err';
+    node.innerHTML =
       '<span>' +
-        esc(message) +
-        '</span>' +
-        (retryable
-          ? '<button type="button" id="aretry" class="ai-retry-now">Continue this request</button>'
-          : '')
-    );
+      esc(message) +
+      '</span>' +
+      (retryable
+        ? '<button type="button" id="aretry" class="ai-retry-now">Continue this request</button>'
+        : '');
     const retryButton = node.querySelector('#aretry');
     if (retryButton)
       retryButton.onclick = async () => {
-        node.remove();
         AI.busy = 1;
         $('#as').disabled = true;
         try {
-          await runAgent(step, requestBody, workflow);
+          await runAgent(step, requestBody, node);
         } finally {
           AI.busy = 0;
           $('#as').disabled = false;
@@ -5592,42 +6201,69 @@
       authOpen('login', 'Your session expired. Sign in again.');
     }
   }
-  function aiWorkflow() {
-    const node = aiAdd(
-      'workflow',
-      '<div class="ai-workflow-head"><span class="ai-workflow-icon">⌘</span><b>Running agentic workflow…</b><span class="ai-workflow-state">Running</span><button type="button" class="ai-workflow-toggle" aria-label="Collapse workflow details" aria-expanded="true">−</button></div><div class="ai-workflow-steps"></div>'
+  function aiStatus(node, status) {
+    node.className = 'bb a ai-working';
+    node.textContent = status;
+  }
+  function aiChangeSummary(uses) {
+    const describe = ({ name, input }) => {
+      if (name === 'build_circuit') {
+        const parts = Array.isArray(input.parts) ? input.parts : [];
+        const types = Object.entries(
+          parts.reduce((counts, part) => {
+            counts[part.type] = (counts[part.type] || 0) + 1;
+            return counts;
+          }, {})
+        )
+          .slice(0, 6)
+          .map(([type, count]) => `${count} ${type}`)
+          .join(', ');
+        return `${input.replace === false ? 'Add' : 'Replace with'} ${parts.length} part(s)${types ? ` (${types})` : ''} and ${(input.wires || []).length} wire(s).`;
+      }
+      if (name === 'clear_circuit') return 'Clear the existing circuit and its drawings.';
+      if (name === 'load_template') {
+        const title =
+          WZ.tpl.find((template) => template.k === input.key)?.t || input.key || 'selected template';
+        return `Replace the existing circuit with the “${title}” template.`;
+      }
+      return '';
+    };
+    const changes = uses.map(describe).filter(Boolean);
+    if (nodes.length)
+      changes.push(
+        `Current circuit: ${nodes.length} part(s), ${wires.length} wire(s), ${notes.length} drawing(s).`
+      );
+    return changes;
+  }
+  function confirmAIChanges(node, uses) {
+    return new Promise((resolve) => {
+      const changes = aiChangeSummary(uses);
+      const card = document.createElement('section');
+      card.className = 'ai-approval';
+      card.setAttribute('aria-label', 'Review circuit changes');
+      card.innerHTML =
+        '<b>Review proposed circuit changes</b><ul>' +
+        changes.map((change) => '<li>' + esc(change) + '</li>').join('') +
+        '</ul><p>Nothing will change until you commit this proposal.</p><div class="ai-approval-actions"><button type="button" class="pr" data-ai-apply>Commit changes</button><button type="button" data-ai-cancel>Cancel</button></div>';
+      node.replaceChildren(card);
+      card.querySelector('[data-ai-apply]').onclick = () => {
+        card.remove();
+        resolve(true);
+      };
+      card.querySelector('[data-ai-cancel]').onclick = () => {
+        card.remove();
+        resolve(false);
+      };
+      node.scrollIntoView({ block: 'end' });
+    });
+  }
+  function needsAIApproval(uses) {
+    return (
+      (nodes.length > 0 || wires.length > 0 || notes.length > 0 || groups.length > 0) &&
+      uses.some(
+        ({ name }) => name === 'build_circuit' || name === 'clear_circuit' || name === 'load_template'
+      )
     );
-    return node;
-  }
-  $('#am').addEventListener('click', (e) => {
-    const toggle = e.target.closest('.ai-workflow-toggle');
-    if (!toggle) return;
-    const workflow = toggle.closest('.workflow');
-    const expanded = toggle.getAttribute('aria-expanded') === 'true';
-    toggle.setAttribute('aria-expanded', String(!expanded));
-    toggle.setAttribute('aria-label', expanded ? 'Expand workflow details' : 'Collapse workflow details');
-    toggle.textContent = expanded ? '+' : '−';
-    workflow.classList.toggle('collapsed', expanded);
-  });
-  function aiWorkflowStep(node, label) {
-    const step = document.createElement('div');
-    step.className = 'ai-workflow-step';
-    step.innerHTML = '<span class="ai-step-check">✓</span><span class="ai-step-icon">⚙</span><span></span>';
-    step.lastElementChild.textContent = label;
-    node.querySelector('.ai-workflow-steps').append(step);
-    node.scrollIntoView({ block: 'end' });
-  }
-  function finishAIWorkflow(node) {
-    if (!node) return;
-    node.classList.add('done');
-    node.querySelector('.ai-workflow-state').textContent = 'Complete';
-    node.querySelector('.ai-workflow-icon').textContent = '✓';
-    node.querySelector('.ai-workflow-head b').textContent = 'Agent workflow completed';
-    node.classList.add('collapsed');
-    const toggle = node.querySelector('.ai-workflow-toggle');
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-label', 'Expand workflow details');
-    toggle.textContent = '+';
   }
   /**
    * Send a chat message to LogicLab AI and run the tool loop until the model gives a final answer.
@@ -5648,24 +6284,24 @@
       $('#as').disabled = false;
     }
   }
-  async function runAgent(startStep, retryBody, resumedWorkflow = null) {
-    let node = aiAdd('a', DOTS);
-    let workflow = resumedWorkflow;
+  async function runAgent(startStep, retryBody, assistantNode = null) {
+    const node = assistantNode || aiAdd('a', 'Thinking…');
     for (let i = startStep; i < 8; i++) {
+      aiStatus(node, 'Thinking…');
       const requestBody =
         i === startStep && retryBody
           ? retryBody
           : {
               messages: trimMsgs(),
               context: ctxSummary(),
-              templates: WZ.tpl.map((t) => t.k + '=' + t.t).join('; ')
+              templates: WZ.tpl.map((t) => t.k + '=' + t.t).join('; '),
+              mode: $('#aimode').value
             };
       let r;
       try {
         r = await aiRequest(requestBody, node);
       } catch (error) {
-        if (node.isConnected) node.remove();
-        showAIError(error, i, requestBody, workflow);
+        showAIError(error, i, requestBody, node);
         return;
       }
       AI.msgs.push({ role: 'assistant', content: r.content });
@@ -5674,54 +6310,37 @@
         .map((b) => b.text)
         .join('\n')
         .trim();
-      if (txt) {
-        node.className = 'bb a';
-        node.innerHTML = mdx(txt);
-      } else node.remove();
       const uses = r.content.filter((b) => b.type == 'tool_use');
       if (!uses.length) {
-        finishAIWorkflow(workflow);
+        node.className = 'bb a';
+        node.innerHTML = mdx(txt || 'Done.');
         return;
       }
-      workflow = workflow || aiWorkflow();
-      if (workflow.querySelector('.ai-workflow-steps').childElementCount === 0)
-        aiWorkflowStep(workflow, 'Analyzed the request');
+      const approvalNeeded = needsAIApproval(uses);
+      let approved = true;
+      if (approvalNeeded) {
+        approved = await confirmAIChanges(node, uses);
+        aiStatus(node, approved ? 'Applying approved changes…' : 'Keeping the current circuit…');
+      } else {
+        aiStatus(node, uses.some((use) => use.name === 'build_circuit') ? 'Building circuit…' : 'Working…');
+      }
       const res = uses.map((u) => {
         let out;
         try {
+          if (!approved && ['build_circuit', 'clear_circuit', 'load_template'].includes(u.name))
+            throw new Error('The user cancelled this proposed circuit change.');
           out = execTool(u.name, u.input || {});
         } catch (e) {
           out = { error: String((e && e.message) || e) };
         }
-        aiWorkflowStep(workflow, toolLabel(u.name, out));
         const o = { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out).slice(0, 7000) };
         if (out.error) o.is_error = true;
         return o;
       });
       AI.msgs.push({ role: 'user', content: res });
-      node = aiAdd('a', DOTS);
     }
-    if (node.isConnected && node.querySelector('.dots')) node.remove();
-    finishAIWorkflow(workflow);
-  }
-  function toolLabel(n, o) {
-    if (o.error) return n.replace('_', ' ') + ' failed: ' + o.error;
-    return (
-      {
-        build_circuit:
-          'Built ' +
-          o.parts +
-          ' parts and ' +
-          o.wires +
-          ' wires' +
-          (o.warnings && o.warnings.length ? ' (' + o.warnings.length + ' warnings)' : ''),
-        set_input: 'Set ' + o.name + ' = ' + o.value,
-        get_state: 'Checked the circuit',
-        control_simulation: 'Simulation: ' + o.action,
-        load_template: 'Loaded template',
-        clear_circuit: 'Cleared the canvas'
-      }[n] || n
-    );
+    node.className = 'bb a';
+    node.textContent = 'I reached the maximum number of steps for this request. Please ask me to continue.';
   }
   function ctxSummary() {
     const P = nodes
@@ -5730,20 +6349,19 @@
             n.id +
             ':' +
             n.type +
-            ' "' +
-            n.name +
-            '"' +
+            ':' +
+            JSON.stringify(n.name) +
             (n.type == 'IN' ? '=' + n.v : '') +
             (MULTI.has(n.type) && n.nin > 2 ? ' (' + n.nin + ' inputs)' : '')
         )
-        .join('; '),
-      W = wires.map((w) => '#' + w.a + (w.ap ? '.' + w.ap : '') + '->#' + w.b + '.' + w.bp).join(', ');
+        .join(';'),
+      W = wires.map((w) => w.a + '.' + w.ap + '>' + w.b + '.' + w.bp).join(',');
     return (
       'Project "' +
       pname +
-      '". Parts (id:type "name"): ' +
+      '". Parts (id:type:JSON-name, input values, and non-default input counts): ' +
       (P || 'none') +
-      '. Wires (#from.outPin->#to.inPin): ' +
+      '. Wires (fromId.outputPin>toId.inputPin): ' +
       (W || 'none') +
       '.' +
       (osc ? ' The circuit is currently oscillating.' : '') +
@@ -5765,7 +6383,11 @@
    */
   function toolBuild(a) {
     if (!Array.isArray(a.parts) || !a.parts.length) throw new Error('parts is empty');
-    if (a.parts.length > 80) throw new Error('Too many parts (max 80).');
+    if (a.parts.length > 1000) throw new Error('Too many parts (max 1,000).');
+    if (!Array.isArray(a.wires || [])) throw new Error('wires must be an array.');
+    if ((a.wires || []).length > 5000) throw new Error('Too many wires (max 5,000).');
+    if (a.replace === false && nodes.length + a.parts.length > 1000)
+      throw new Error('This project would exceed the 1,000 part limit.');
     if (a.replace !== false) {
       selAll();
       delSel();
@@ -5921,7 +6543,8 @@
   const PANELS = {
     pal: { prop: '--pal-w', min: 180, max: 460, label: 'components panel' },
     side: { prop: '--side-w', min: 240, max: 560, label: 'properties panel' },
-    foot: { prop: '--foot-h', min: 110, max: 520, label: 'waveform panel' }
+    foot: { prop: '--foot-h', min: 110, max: 520, label: 'waveform panel' },
+    ai: { prop: '--ai-w', min: 320, max: 520, label: 'AI panel' }
   };
   const LAYOUT_KEY = 'gf:ui';
   const savedLayout = () => {
@@ -6018,6 +6641,15 @@
       foot,
       () => foot.getBoundingClientRect().height,
       (dx, dy) => -dy
+    );
+    const ai = $('#ai');
+    addHandle(
+      'ai',
+      'ai-rz',
+      'prepend',
+      ai,
+      () => ai.getBoundingClientRect().width,
+      (dx) => -dx
     );
     const saved = savedLayout();
     Object.keys(PANELS).forEach((k) => saved[k] && setPanel(k, saved[k], false));

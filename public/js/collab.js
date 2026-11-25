@@ -1228,7 +1228,7 @@
     h += row('cb-r-dl', ICON.dl, 'Download', '', 1);
     if (ui.download)
       h +=
-        '<div class="cb-downloads"><button class="cb-rw" data-download="proj">Project file (.logiclab.json)</button><button class="cb-rw" data-download="png">Export PNG image</button><button class="cb-rw" data-download="pdf">Export PDF</button></div>';
+        '<div class="cb-downloads"><button class="cb-rw" data-download="proj">Project file (.logiclab.json)</button><button class="cb-rw" data-download="png">Export PNG image</button><button class="cb-rw" data-download="pdf">Export PDF</button><button class="cb-rw" data-download="custom">Custom image export…</button></div>';
     if (S) h += row('cb-r-leave', ICON.more, S.owner ? 'End my live session' : 'Leave session', '');
     if (owner && u && share) h += row('cb-r-more', ICON.more, 'More', '', 1);
     h += '</div>';

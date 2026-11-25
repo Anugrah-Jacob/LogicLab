@@ -82,6 +82,342 @@ await test('deep link /?template=<id> opens that example', async () => {
   eq(await p.evaluate(() => location.search), '', 'query string is cleaned up');
   await p.close();
 });
+await test('editor uses one workspace without a separate mode selector', async () => {
+  ok(!(await pg.locator('#emode').count()), 'the mode selector is removed');
+  ok(await pg.isVisible('#pal'), 'parts palette remains available');
+  ok(await pg.isVisible('#dt'), 'drawing tools remain available');
+  ok(await pg.isVisible('#side .stabs'), 'analysis remains available');
+});
+await test('canvas zoom extends well beyond the old 3x ceiling', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  for (let i = 0; i < 10; i++) await pg.click('#zi');
+  const scale = Number((await pg.locator('#zl').innerText()).replace('%', ''));
+  ok(scale > 300, 'zoom percentage should exceed the old 300% limit; got ' + scale);
+  await pg.click('#zf');
+});
+await test('parts can be resized and rotated with direct selection handles', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  const box = await pg.locator('#cv').boundingBox();
+  const clickAt = await pg.evaluate(() => {
+    const n = LogicLab.exportProject().nodes.find((p) => p.type === 'XOR');
+    const v = LogicLabHost.view().v;
+    const h = Math.max(48, n.nin * 16 + 16);
+    return {
+      x: v.x + (n.x + 38) * v.s,
+      y: v.y + (n.y + 24) * v.s,
+      rotate: { x: v.x + (n.x + 38) * v.s, y: v.y + n.y * v.s - 30 },
+      resize: { x: v.x + (n.x + 76) * v.s, y: v.y + (n.y + h) * v.s }
+    };
+  });
+  await pg.mouse.click(box.x + clickAt.x, box.y + clickAt.y);
+  await pg.mouse.move(box.x + clickAt.rotate.x, box.y + clickAt.rotate.y);
+  await pg.mouse.down();
+  await pg.mouse.move(box.x + clickAt.rotate.x + 24, box.y + clickAt.rotate.y + 24);
+  await pg.mouse.up();
+  const rotated = await pg.evaluate(() => LogicLab.exportProject().nodes.find((p) => p.type === 'XOR').rot);
+  ok(rotated > 0, 'rotation handle should rotate the part');
+  const newPoint = await pg.evaluate(() => {
+    const n = LogicLab.exportProject().nodes.find((p) => p.type === 'XOR'),
+      v = LogicLabHost.view().v;
+    const cx = n.x + 38,
+      cy = n.y + 24,
+      a = (n.rot * Math.PI) / 180,
+      corners = [
+        [n.x, n.y],
+        [n.x + 76, n.y],
+        [n.x, n.y + 48],
+        [n.x + 76, n.y + 48]
+      ].map(([x, y]) => ({
+        x: cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a),
+        y: cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)
+      }));
+    return {
+      x: v.x + Math.max(...corners.map((p) => p.x)) * v.s,
+      y: v.y + Math.max(...corners.map((p) => p.y)) * v.s
+    };
+  });
+  await pg.mouse.move(box.x + newPoint.x, box.y + newPoint.y);
+  await pg.mouse.down();
+  await pg.mouse.move(box.x + newPoint.x + 35, box.y + newPoint.y + 24);
+  await pg.mouse.up();
+  const node = await pg.evaluate(() => LogicLab.exportProject().nodes.find((p) => p.type === 'XOR'));
+  ok(node.scale > 1, 'resize handle should resize the part');
+});
+await test('wire context menu supports adding a saved routing bend', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  const box = await pg.locator('#cv').boundingBox();
+  const at = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      w = d.wires.find((x) => !x.bends && x.mode !== 'straight'),
+      a = d.nodes.find((x) => x.id === w.a),
+      b = d.nodes.find((x) => x.id === w.b),
+      h = (n) =>
+        n.type === 'METER'
+          ? 64
+          : n.type === 'IN' || n.type === 'CLK'
+            ? 44
+            : ['AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR'].includes(n.type)
+              ? Math.max(48, n.nin * 16 + 16)
+              : n.type === 'NOT' || n.type === 'BUF'
+                ? 40
+                : Math.max(44, 2 * 24 + 12),
+      ni = (n) =>
+        ['AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR'].includes(n.type)
+          ? n.nin
+          : n.type === 'IN' || n.type === 'CLK'
+            ? 0
+            : n.type === 'JK'
+              ? 3
+              : n.type === 'D' || n.type === 'T' || n.type === 'SIPO'
+                ? 2
+                : n.type === 'PISO'
+                  ? 6
+                  : 1,
+      no = (n) =>
+        ['D', 'T', 'JK'].includes(n.type)
+          ? 2
+          : n.type === 'SIPO'
+            ? 4
+            : ['LED', 'METER'].includes(n.type)
+              ? 0
+              : 1,
+      p = { x: a.x + 76, y: a.y + (h(a) * (w.ap + 1)) / (no(a) + 1) },
+      q = { x: b.x, y: b.y + (h(b) * (w.bp + 1)) / (ni(b) + 1) },
+      r =
+        q.x > p.x + 24
+          ? { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }
+          : { x: (p.x + 16 + q.x - 16) / 2, y: Math.min(p.y, q.y) - 44 },
+      v = LogicLabHost.view().v;
+    return { id: w.a + ':' + w.b, x: r.x, y: r.y, vx: v.x, vy: v.y, s: v.s };
+  });
+  await pg.mouse.click(box.x + at.vx + at.x * at.s, box.y + at.vy + at.y * at.s, { button: 'right' });
+  await pg.getByRole('button', { name: 'Add bend here' }).click();
+  const routed = await pg.evaluate(() =>
+    LogicLab.exportProject().wires.some((w) => w.bends && w.bends.length)
+  );
+  ok(routed, 'wire bend should be stored in the project');
+});
+
+await test('auto arrange reroutes only internal wires of the selected parts', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'Y', type: 'LED' },
+        { id: 'B', type: 'IN' },
+        { id: 'U2', type: 'NOT' },
+        { id: 'Z', type: 'LED' }
+      ],
+      wires: [
+        { from: 'A.0', to: 'U1.0' },
+        { from: 'U1.0', to: 'Y.0' },
+        { from: 'B.0', to: 'U2.0' },
+        { from: 'U2.0', to: 'Z.0' }
+      ]
+    })
+  );
+  const project = await pg.evaluate(() => LogicLab.exportProject());
+  project.wires.forEach((w, i) => (w.bends = [{ x: 60 + i * 24, y: 180 + i * 24 }]));
+  await pg.evaluate((d) => LogicLab.importProject(d), project);
+  const box = await pg.locator('#cv').boundingBox();
+  const positions = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      v = LogicLabHost.view().v,
+      screen = (name) => {
+        const n = d.nodes.find((x) => x.name === name);
+        return { x: v.x + (n.x + 38) * v.s, y: v.y + (n.y + 22) * v.s };
+      };
+    return { a: screen('A'), u: screen('U1') };
+  });
+  await pg.mouse.click(box.x + positions.a.x, box.y + positions.a.y);
+  await pg.keyboard.down('Shift');
+  await pg.mouse.click(box.x + positions.u.x, box.y + positions.u.y);
+  await pg.keyboard.up('Shift');
+  await pg.mouse.click(box.x + positions.a.x, box.y + positions.a.y, { button: 'right' });
+  await pg.getByRole('button', { name: 'Auto arrange selected wires' }).click();
+  const after = await pg.evaluate(() => LogicLab.exportProject()),
+    ids = after.nodes.filter((n) => ['A', 'U1'].includes(n.name)).map((n) => n.id),
+    internal = after.wires.find((w) => ids.includes(w.a) && ids.includes(w.b)),
+    untouched = after.wires.filter((w) => !(ids.includes(w.a) && ids.includes(w.b)));
+  ok(!internal.bends, 'selected internal wire gets an automatic route');
+  ok(
+    untouched.every((w) => w.bends && w.bends.length === 1),
+    'other wires keep their routes'
+  );
+  eq(
+    after.nodes.map(({ x, y }) => [x, y]),
+    project.nodes.map(({ x, y }) => [x, y]),
+    'wire arranging must not move any gates'
+  );
+});
+
+await test('duplicate preserves gate transforms, color and internal wire routing', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'Y', type: 'LED' }
+      ],
+      wires: [
+        { from: 'A.0', to: 'U1.0' },
+        { from: 'U1.0', to: 'Y.0' }
+      ]
+    })
+  );
+  const project = await pg.evaluate(() => LogicLab.exportProject());
+  const gate = project.nodes.find((n) => n.name === 'U1');
+  gate.scale = 1.7;
+  gate.rot = 45;
+  gate.color = '#aabbcc';
+  project.wires[0].color = '#123456';
+  project.wires[0].bends = [{ x: 100, y: 120 }];
+  project.wires[0].mode = 'orthogonal';
+  await pg.evaluate((d) => LogicLab.importProject(d), project);
+  await pg.keyboard.press('Control+a');
+  await pg.locator('#du').click();
+  const after = await pg.evaluate(() => LogicLab.exportProject()),
+    copy = after.nodes.find((n) => n.name === 'U1’'),
+    copiedWire = after.wires.find((w) => w.color === '#123456' && w.bends && w.bends[0].x > 100);
+  eq([copy.scale, copy.rot, copy.color], [1.7, 45, '#aabbcc']);
+  ok(copiedWire && copiedWire.bends[0].y === 150, 'duplicated wire retains and offsets its custom route');
+});
+
+await test('gate and wire colors can be edited in the inspector', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' }
+      ],
+      wires: [{ from: 'A.0', to: 'U1.0' }]
+    })
+  );
+  const box = await pg.locator('#cv').boundingBox();
+  const points = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      a = d.nodes.find((n) => n.name === 'A'),
+      u = d.nodes.find((n) => n.name === 'U1'),
+      v = LogicLabHost.view().v,
+      screen = (x, y) => ({ x: v.x + x * v.s, y: v.y + y * v.s });
+    return {
+      gate: screen(u.x + 38, u.y + 20),
+      wire: screen((a.x + 76 + u.x) / 2, a.y + 22)
+    };
+  });
+  await pg.mouse.click(box.x + points.gate.x, box.y + points.gate.y);
+  await pg.fill('#ncolor', '#de4567');
+  await pg.locator('#ncolor').press('Tab');
+  eq(await pg.evaluate(() => LogicLab.exportProject().nodes.find((n) => n.name === 'U1').color), '#de4567');
+  await pg.mouse.click(box.x + points.wire.x, box.y + points.wire.y);
+  await pg.fill('#wcolor', '#1b73e8');
+  await pg.locator('#wcolor').press('Tab');
+  eq(await pg.evaluate(() => LogicLab.exportProject().wires[0].color), '#1b73e8');
+});
+await test('Wire tool connects pins through multiple clicks and keeps bends', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'U2', type: 'NOT' }
+      ],
+      wires: [{ from: 'A.0', to: 'U1.0' }]
+    })
+  );
+  await pg.waitForTimeout(100);
+  const box = await pg.locator('#cv').boundingBox();
+  const pts = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      a = d.nodes.find((n) => n.name === 'A'),
+      b = d.nodes.find((n) => n.name === 'U2'),
+      h = (n) => (n.type === 'IN' ? 44 : 40),
+      v = LogicLabHost.view().v,
+      screen = (x, y) => ({ x: v.x + x * v.s, y: v.y + y * v.s });
+    return {
+      start: screen(a.x + 76, a.y + h(a) / 2),
+      bend: screen((a.x + b.x) / 2, Math.max(a.y, b.y) + 72),
+      end: screen(b.x, b.y + h(b) / 2)
+    };
+  });
+  await pg.click('#tw');
+  await pg.mouse.click(box.x + pts.start.x, box.y + pts.start.y);
+  await pg.mouse.click(box.x + pts.bend.x, box.y + pts.bend.y);
+  await pg.mouse.click(box.x + pts.end.x, box.y + pts.end.y);
+  const doc = await pg.evaluate(() => LogicLab.exportProject());
+  ok(
+    doc.wires.some((w) => w.bends && w.bends.length === 1),
+    'new wire should retain its bend'
+  );
+  ok(
+    doc.wires.some(
+      (w) =>
+        w.a === doc.nodes.find((n) => n.name === 'A').id && w.b === doc.nodes.find((n) => n.name === 'U2').id
+    )
+  );
+  await pg.click('#tsel');
+  await pg.keyboard.press('Control+a');
+  const before = await pg.evaluate(() => {
+    const d = LogicLab.exportProject(),
+      w = d.wires.find((x) => x.bends && x.bends.length),
+      n = d.nodes.find((x) => x.name === 'U2'),
+      v = LogicLabHost.view().v;
+    return {
+      bend: w.bends[0],
+      point: { x: v.x + (n.x + 38) * v.s, y: v.y + (n.y + 20) * v.s }
+    };
+  });
+  await pg.mouse.move(box.x + before.point.x, box.y + before.point.y);
+  await pg.mouse.down();
+  await pg.mouse.move(box.x + before.point.x + 72, box.y + before.point.y + 32);
+  await pg.mouse.up();
+  const bendAfter = await pg.evaluate(
+    () => LogicLab.exportProject().wires.find((w) => w.bends && w.bends.length).bends[0]
+  );
+  ok(
+    bendAfter.x !== before.bend.x || bendAfter.y !== before.bend.y,
+    'routing bends should move with a multi-part circuit selection'
+  );
+});
+
+await test('drawing tools support fill, border colour and Shift-constrained shapes', async () => {
+  await pg.evaluate(() => LogicLab.load(''));
+  await pg.click('#dt [data-k=rect]');
+  await pg.check('#dfill');
+  await pg.fill('#dc', '#123456');
+  await pg.fill('#fc', '#abcdef');
+  const box = await pg.locator('#cv').boundingBox();
+  const view = await pg.evaluate(() => LogicLabHost.view().v);
+  const screen = (x, y) => ({
+    x: box.x + view.x + x * view.s,
+    y: box.y + view.y + y * view.s
+  });
+  const start = screen(120, 120),
+    end = screen(220, 180);
+  await pg.mouse.move(start.x, start.y);
+  await pg.mouse.down();
+  await pg.keyboard.down('Shift');
+  await pg.mouse.move(end.x, end.y);
+  await pg.keyboard.up('Shift');
+  await pg.mouse.up();
+  const shape = await pg.evaluate(() => LogicLab.exportProject().notes.find((n) => n.t === 'rect'));
+  ok(shape.fillOn, 'rectangle fill should be enabled');
+  eq([shape.bc, shape.fc], ['#123456', '#abcdef']);
+  eq(Math.abs(shape.x1 - shape.x0), Math.abs(shape.y1 - shape.y0), 'Shift constrains a square');
+});
+
+await test('middle-button drag pans the canvas', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  const box = await pg.locator('#cv').boundingBox();
+  const before = await pg.evaluate(() => ({ ...LogicLabHost.view().v }));
+  await pg.mouse.move(box.x + 300, box.y + 250);
+  await pg.mouse.down({ button: 'middle' });
+  await pg.mouse.move(box.x + 350, box.y + 290);
+  await pg.mouse.up({ button: 'middle' });
+  const after = await pg.evaluate(() => LogicLabHost.view().v);
+  ok(after.x !== before.x || after.y !== before.y, 'canvas offset should change while panning');
+});
 
 /* ---- editing, undo/redo, groups, drawings ---- */
 await test('undo and redo restore the circuit', async () => {
@@ -125,7 +461,7 @@ await test('Share menu offers project file, PNG and PDF downloads, and each down
   const grab = async (x) => {
     await pg.click('#cb-share');
     await pg.click('#cb-r-dl');
-    ok((await pg.locator('#cb-pop [data-download]').count()) === 3, 'Download submenu has all formats');
+    ok((await pg.locator('#cb-pop [data-download]').count()) === 4, 'Download submenu has all formats');
     const [d] = await Promise.all([
       pg.waitForEvent('download'),
       pg.click('#cb-pop [data-download=' + x + ']')
@@ -146,6 +482,34 @@ await test('Share menu offers project file, PNG and PDF downloads, and each down
   eq(pdf.data.subarray(0, 5).toString(), '%PDF-');
   ok(pdf.data.length > 2000);
   fs.writeFileSync('/tmp/ll-project.json', proj.data);
+});
+await test('custom image export supports selected content and whole-circuit scope', async () => {
+  await pg.evaluate(() => LogicLab.load('half-adder'));
+  const box = await pg.locator('#cv').boundingBox();
+  const at = await pg.evaluate(() => {
+    const n = LogicLab.exportProject().nodes[0],
+      v = LogicLabHost.view().v;
+    return { x: v.x + (n.x + 38) * v.s, y: v.y + (n.y + 22) * v.s };
+  });
+  await pg.mouse.click(box.x + at.x, box.y + at.y);
+  const exportPng = async (scope, file) => {
+    await pg.click('#cb-share');
+    await pg.click('#cb-r-dl');
+    await pg.click('[data-download=custom]');
+    await pg.check('input[name=exscope][value=' + scope + ']');
+    if (scope === 'selected') {
+      await pg.uncheck('#exwires');
+      await pg.uncheck('#exdrawings');
+    }
+    const [download] = await Promise.all([pg.waitForEvent('download'), pg.click('#exsubmit')]);
+    await download.saveAs(file);
+    const data = fs.readFileSync(file);
+    eq(data.subarray(1, 4).toString(), 'PNG');
+    return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
+  };
+  const selected = await exportPng('selected', '/tmp/ll-selected.png'),
+    full = await exportPng('all', '/tmp/ll-full.png');
+  ok(selected.width < full.width, 'selection-only export should crop to selected parts');
 });
 await test('a saved project file reopens, and old GateForge files still open', async () => {
   const open = async (file) => {
@@ -308,13 +672,19 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
     'welcome fits the screen'
   );
   const welcome = await p.evaluate(() => {
-    const els = [...document.querySelectorAll('#wl aside .lgo, #wl aside .nv:not(#wexamples), #wl aside #wn, #wl aside #wo')];
+    const els = [
+      ...document.querySelectorAll(
+        '#wl aside .lgo, #wl aside .nv:not(#wexamples), #wl aside #wn, #wl aside #wo'
+      )
+    ];
     const boxes = els.map((e) => {
       const r = e.getBoundingClientRect();
       return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width };
     });
     const overlaps = boxes.some((a, i) =>
-      boxes.slice(i + 1).some((b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1)
+      boxes
+        .slice(i + 1)
+        .some((b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1)
     );
     return { overlaps, linksFit: boxes.slice(1, 4).every((b) => b.width > 70) };
   });
@@ -332,7 +702,9 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
   ok(await p.isVisible('#sim'), 'simulation control remains available on phones');
   ok(
     await p.evaluate(
-      () => document.querySelector('#dt').getBoundingClientRect().bottom <= document.querySelector('#bn').getBoundingClientRect().top + 1
+      () =>
+        document.querySelector('#dt').getBoundingClientRect().bottom <=
+        document.querySelector('#bn').getBoundingClientRect().top + 1
     ),
     'drawing toolbar is not covered by the bottom nav'
   );
@@ -364,7 +736,8 @@ await test('tablet and laptop editor layouts fit their viewport', async () => {
     await p.setViewportSize({ width, height: 900 });
     const layout = await p.evaluate(() => ({
       documentFits: document.documentElement.scrollWidth <= innerWidth + 1,
-      headerFits: document.querySelector('header').scrollWidth <= document.querySelector('header').clientWidth + 1,
+      headerFits:
+        document.querySelector('header').scrollWidth <= document.querySelector('header').clientWidth + 1,
       canvasWidth: document.querySelector('#cv').getBoundingClientRect().width
     }));
     eq(layout.documentFits, true, `document overflows at ${width}px`);

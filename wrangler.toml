@@ -8,11 +8,11 @@ database_name = "logiclab"
 database_id = "d0e22662-9b75-413b-857a-a433a1b4c5cf"
 
 [vars]
-AI_MODEL = "gpt-oss-120b"
-AI_PROVIDER = "openai"
+AI_MODEL = "llama-3.3-70b-versatile"
+AI_PROVIDER = "groq"
 AI_DAILY_LIMIT = "60"
 # Secrets (never put these in this file; see docs/SETUP_GUIDE.md):
 #   JWT_SECRET         random string, 32+ characters
 #   ADMIN_SETUP_CODE   one-time code to become the first administrator
 # The AI provider and key are set in the admin panel (/admin/ > Settings).
-# AI_MODEL is only used as the default when the provider is Anthropic.
+# AI_MODEL is configured in the admin panel; only Groq and Gemini are supported.

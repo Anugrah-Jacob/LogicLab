@@ -1,9 +1,10 @@
-// Cloud tests: accounts, project sync, offline editing and the AI agent loop (with the model mocked).
-// Needs a running dev server:  npm run dev   (then in another terminal)  npm run test:cloud
+// API and browser integration tests: account sync, offline editing and the mocked AI tool loop.
 import { chromium } from 'playwright';
 import { test, eq, ok, summary } from './harness.mjs';
+import { startApp } from './app-server.mjs';
 
-const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8788').replace(/\/$/, '') + '/';
+const app = await startApp();
+const BASE = app.url;
 const post = (p, body, headers = {}, cookie = '') =>
   fetch(BASE + 'api' + p, {
     method: 'POST',
@@ -161,6 +162,7 @@ await test('sign up through the interface, then the project syncs to the server'
   await page.click('#asb');
   await page.waitForFunction(() => document.querySelector('#wav').textContent === 'AJ');
   await page.click('.tc[data-k="mux-4to1"]');
+  await page.evaluate(() => LogicLabHost.syncNow());
   await page.waitForFunction(() => /Synced/.test(document.querySelector('#ss').textContent), null, {
     timeout: 15000
   });
@@ -178,6 +180,7 @@ await test('edits made offline are kept on the device and synced after reconnect
   });
   const count = await page.evaluate(() => LogicLab.parts().length);
   await ctx.setOffline(false);
+  await page.evaluate(() => LogicLabHost.syncNow());
   await page.waitForFunction(
     (n) =>
       fetch('/api/projects')
@@ -191,13 +194,17 @@ await test('edits made offline are kept on the device and synced after reconnect
 await test('the AI agent builds a circuit, checks it, and answers', async () => {
   await page.click('#aib');
   await page.click('#ah0 .pc button >> nth=0');
+  await page.waitForSelector('.ai-approval [data-ai-apply]', { timeout: 5000 });
+  await page.click('.ai-approval [data-ai-apply]');
   await page.waitForFunction(() => document.querySelector('#am').innerText.includes('Verified.'), null, {
     timeout: 15000
   });
   eq(await page.evaluate(() => LogicLab.parts().length), 6);
   eq(calls.slice(0, 3), [1, 3, 5]);
   const text = await page.locator('#am').innerText();
-  ok(text.includes('Built 6 parts and 6 wires') && text.includes('Verified.'));
+  ok(text.includes('Verified.'));
+  eq(await page.locator('#am .bb.a').count(), 1, 'tool steps collapse into the final assistant message');
+  await page.evaluate(() => LogicLabHost.syncNow());
 });
 await test('the session survives a reload and the project list shows the synced project', async () => {
   await page.reload();
@@ -225,4 +232,5 @@ await test('no console errors or CSP violations occurred', async () => {
   eq(problems, []);
 });
 await browser.close();
+await app.close();
 summary();

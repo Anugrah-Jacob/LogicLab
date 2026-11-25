@@ -16,7 +16,7 @@ The claim only works while no administrator exists. After that, administrators p
 - **Users**: search, add a user (you choose their password), edit name, role and personal AI limit, reset a password, disable or enable an account, delete an account with all its circuits.
 - **Circuits**: every project that users have synced, with owner, type, size and the template it started from. You can delete one.
 - **AI usage**: requests per day for 30 days and the top users.
-- **Settings**: AI provider, model, base URL, provider API keys, daily limit, AI on/off, and whether anyone can sign up.
+- **Settings**: Groq/Gemini provider and model, encrypted API keys, daily limit, AI on/off, and whether anyone can sign up.
 - **System**: health checks for the database, migrations, secrets and the AI provider.
 
 The sidebar can be collapsed with the menu button; the choice is remembered.
@@ -24,11 +24,11 @@ The sidebar can be collapsed with the menu button; the choice is remembered.
 ## The AI provider and key
 
 - The key is encrypted with a key derived from `JWT_SECRET` before it is stored in the database. It is never sent back to any browser; the form only shows the last four characters.
-- Settings has a primary provider, an optional second provider, and NVIDIA Build as the third provider. When a provider is rate-limited or unavailable, LogicLab tries the configured providers in order. Each key is encrypted separately.
+- Settings has a primary Groq or Gemini provider and an optional fallback to the other. When the primary is rate-limited or unavailable, LogicLab tries the fallback if its key is configured. Each key is encrypted separately.
 - **Test connection** sends one tiny request with your saved settings and reports success, the time it took, or the provider's error.
 - You can switch providers at any time. Every user's chat keeps working.
-- If you do not save a key here, the server falls back to an `ANTHROPIC_API_KEY` secret when the provider is Anthropic.
-- Custom providers must offer the OpenAI-compatible chat API with tool calling. The URL must be https (http is allowed only for localhost while testing).
+- The server can also use `GROQ_API_KEY` or `GEMINI_API_KEY` secrets if a key is not saved in Settings.
+- Both providers use the OpenAI-compatible chat API with tool calling through LangChain.
 
 ## Limits
 

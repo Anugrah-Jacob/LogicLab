@@ -86,6 +86,20 @@ await test('merge: two wires into one input leave exactly one, the same on both 
   eq(sortedKeys(a), sortedKeys(b));
   eq([...a.desired().keys()].filter((k) => k[0] === 'w').length, 1);
 });
+await test('merge: gate transforms and wire styling/routes synchronize together', () => {
+  const [a, b, da] = pair();
+  da.nodes[0].scale = 1.8;
+  da.nodes[0].rot = 45;
+  da.nodes[0].color = '#123456';
+  da.wires[0].color = '#abcdef';
+  da.wires[0].bends = [{ x: 80, y: 30 }];
+  b.remote(a.local(da));
+  const d = b.reconcile(clone(base));
+  const node = d.find((x) => x.k === 'n:1').v,
+    wire = d.find((x) => x.k === 'w:1:0:2:0').v;
+  eq([node.scale, node.rot, node.color], [1.8, 45, '#123456']);
+  eq([wire.color, wire.bends], ['#abcdef', [{ x: 80, y: 30 }]]);
+});
 await test('merge: reconcile() turns the live document into the merged one (and nothing else)', () => {
   const [a, b, da] = pair();
   da.nodes.push({ id: 1000001, type: 'OR', x: 5, y: 5, name: 'U1', nin: 2 });
@@ -157,7 +171,7 @@ function applyTo(doc, ch) {
       d.wires = d.wires.filter(
         (w) => !(w.a === a && w.ap === ap && w.b === b && w.bp === bp) && !(v && w.b === b && w.bp === bp)
       );
-      if (v) d.wires.push({ a, ap, b, bp });
+      if (v) d.wires.push(v === 1 ? { a, ap, b, bp } : v);
     }
   }
   const ids = new Set(d.nodes.map((n) => n.id));

@@ -1,22 +1,8 @@
 // Platform settings stored in D1 (table `settings`). The AI key is stored encrypted and never sent to a browser.
 import { seal, unseal } from './util.js';
 
-/** AI providers the admin can choose. `kind` decides which API format is used. */
+/** Free-tier AI providers the admin can choose. `kind` decides which API format is used. */
 export const PROVIDERS = {
-  anthropic: {
-    label: 'Anthropic (Claude)',
-    kind: 'anthropic',
-    base: 'https://api.anthropic.com',
-    model: 'claude-sonnet-5-5',
-    models: ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5']
-  },
-  openai: {
-    label: 'OpenAI',
-    kind: 'openai',
-    base: 'https://api.openai.com/v1',
-    model: 'gpt-oss-120b',
-    models: ['gpt-oss-120b']
-  },
   groq: {
     label: 'Groq',
     kind: 'openai',
@@ -28,54 +14,33 @@ export const PROVIDERS = {
     label: 'Google Gemini',
     kind: 'openai',
     base: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    model: 'gemini-3.5-flash-lite',
-    models: ['gemini-3.5-flash-lite']
-  },
-  openrouter: {
-    label: 'OpenRouter',
-    kind: 'openai',
-    base: 'https://openrouter.ai/api/v1',
-    model: 'openai/gpt-4o-mini',
-    models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'meta-llama/llama-3.3-70b-instruct']
-  },
-  nvidia: {
-    label: 'NVIDIA Build',
-    kind: 'openai',
-    base: 'https://integrate.api.nvidia.com/v1',
-    model: 'meta/llama-3.3-70b-instruct',
-    models: ['meta/llama-3.3-70b-instruct', 'meta/llama-3.1-70b-instruct']
-  },
-  together: {
-    label: 'Together AI',
-    kind: 'openai',
-    base: 'https://api.together.xyz/v1',
-    model: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
-    models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo']
-  },
-  custom: { label: 'Custom (OpenAI-compatible)', kind: 'openai', base: '', model: '', models: [] }
+    model: 'gemini-2.5-flash-lite',
+    models: ['gemini-2.5-flash-lite', 'gemini-2.5-flash']
+  }
 };
 
 export async function loadSettings(env) {
   const rows = await env.DB.prepare('SELECT k, v FROM settings').all();
   const raw = Object.fromEntries(rows.results.map((r) => [r.k, r.v]));
-  const defaultProvider = PROVIDERS[env.AI_PROVIDER] ? env.AI_PROVIDER : 'openai';
+  const defaultProvider = PROVIDERS[env.AI_PROVIDER] ? env.AI_PROVIDER : 'groq';
   const provider = PROVIDERS[raw.ai_provider] ? raw.ai_provider : defaultProvider;
   const fallbackProvider = Object.hasOwn(raw, 'ai_fallback_provider')
-    ? PROVIDERS[raw.ai_fallback_provider] &&
-      raw.ai_fallback_provider !== provider &&
-      raw.ai_fallback_provider !== 'nvidia'
+    ? PROVIDERS[raw.ai_fallback_provider] && raw.ai_fallback_provider !== provider
       ? raw.ai_fallback_provider
       : ''
-    : provider === 'openai'
+    : provider === 'groq'
       ? 'gemini'
-      : '';
+      : 'groq';
   return {
     provider,
     fallbackProvider,
-    thirdProvider: '',
-    model: raw.ai_model || (provider === 'anthropic' && env.AI_MODEL) || PROVIDERS[provider].model,
+    fallbackModel:
+      raw.ai_fallback_model ||
+      (fallbackProvider && PROVIDERS[fallbackProvider] ? PROVIDERS[fallbackProvider].model : ''),
+    model: raw.ai_model || PROVIDERS[provider].model,
     baseUrl: raw.ai_base_url || '',
     keyBlob: raw.ai_key || '',
+    legacyKeyProvider: raw.ai_provider || '',
     geminiKeyBlob: raw.ai_gemini_key || '',
     providerKeyBlobs: Object.fromEntries(
       Object.entries(raw)
@@ -94,13 +59,13 @@ export async function saveSetting(env, key, value) {
     .run();
 }
 
-/** The API key to use: the one saved in the admin panel, or the ANTHROPIC_API_KEY secret as a fallback. */
+/** The API key to use: the encrypted provider key or its server-side environment secret. */
 export async function resolveKey(env, settings) {
   const providerKeyBlob = settings.providerKeyBlobs?.[settings.provider] || '';
   const keyBlob =
     providerKeyBlob ||
     (settings.provider === 'gemini' && settings.geminiKeyBlob ? settings.geminiKeyBlob : '') ||
-    settings.keyBlob;
+    (settings.legacyKeyProvider === settings.provider ? settings.keyBlob : '');
   if (keyBlob) {
     try {
       return await unseal(env, keyBlob);
@@ -108,8 +73,8 @@ export async function resolveKey(env, settings) {
       return '';
     }
   }
-  if (settings.provider === 'anthropic') return env.ANTHROPIC_API_KEY || '';
   if (settings.provider === 'gemini') return env.GEMINI_API_KEY || '';
+  if (settings.provider === 'groq') return env.GROQ_API_KEY || '';
   return '';
 }
 
@@ -138,10 +103,6 @@ export async function storeKey(env, plain) {
 
 export async function storeProviderKey(env, provider, plain) {
   await saveSetting(env, 'ai_key_' + provider, await seal(env, plain));
-}
-
-export async function storeGeminiKey(env, plain) {
-  await saveSetting(env, 'ai_gemini_key', await seal(env, plain));
 }
 
 export const keyHint = (plain) => (plain ? '••••' + plain.slice(-4) : '');

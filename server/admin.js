@@ -18,10 +18,8 @@ import {
   loadSettings,
   saveSetting,
   storeKey,
-  storeGeminiKey,
   storeProviderKey,
   resolveKey,
-  effectiveBase,
   validBaseUrl,
   keyHint,
   aiReady
@@ -180,7 +178,8 @@ export async function health(env) {
     env: {
       jwtSecret: !!env.JWT_SECRET && env.JWT_SECRET.length >= 16,
       adminSetupCode: !!env.ADMIN_SETUP_CODE,
-      anthropicKeyFallback: !!env.ANTHROPIC_API_KEY
+      groqKey: !!env.GROQ_API_KEY,
+      geminiKey: !!env.GEMINI_API_KEY
     },
     time: new Date().toISOString()
   });
@@ -368,13 +367,14 @@ export async function getSettings(env) {
           models: p.models,
           hasKey: !!(
             s.providerKeyBlobs[id] ||
-            (id === s.provider && s.keyBlob) ||
+            (id === s.provider && s.legacyKeyProvider === id && s.keyBlob) ||
             (id === 'gemini' && s.geminiKeyBlob)
           ),
           keyHint: keyHint(
             await resolveKey(env, {
               provider: id,
               keyBlob: id === s.provider ? s.keyBlob : '',
+              legacyKeyProvider: s.legacyKeyProvider,
               geminiKeyBlob: id === 'gemini' ? s.geminiKeyBlob : '',
               providerKeyBlobs: s.providerKeyBlobs
             })
@@ -386,14 +386,14 @@ export async function getSettings(env) {
   return json({
     provider: s.provider,
     fallbackProvider: s.fallbackProvider,
-    thirdProvider: s.thirdProvider,
+    fallbackModel: s.fallbackModel,
     model: s.model,
-    baseUrl: s.baseUrl,
-    effectiveBase: effectiveBase(s),
     hasKey: !!key,
     keyHint: keyHint(key),
     keySource:
-      s.providerKeyBlobs[s.provider] || s.keyBlob || (s.provider === 'gemini' && s.geminiKeyBlob)
+      s.providerKeyBlobs[s.provider] ||
+      (s.legacyKeyProvider === s.provider && s.keyBlob) ||
+      (s.provider === 'gemini' && s.geminiKeyBlob)
         ? 'admin'
         : key
           ? 'environment'
@@ -415,28 +415,36 @@ export async function putSettings(request, env) {
   if (b.provider !== undefined) {
     if (!PROVIDERS[b.provider]) return fail(400, 'Unknown provider.');
     await saveSetting(env, 'ai_provider', b.provider);
+    if (b.provider !== currentProvider) {
+      if (typeof b.model !== 'string') await saveSetting(env, 'ai_model', PROVIDERS[b.provider].model);
+      if (typeof b.baseUrl !== 'string') await saveSetting(env, 'ai_base_url', '');
+    }
   }
   if (b.fallbackProvider !== undefined) {
-    if (
-      b.fallbackProvider !== '' &&
-      (!PROVIDERS[b.fallbackProvider] ||
-        b.fallbackProvider === 'nvidia' ||
-        b.fallbackProvider === nextProvider)
-    )
+    if (b.fallbackProvider !== '' && (!PROVIDERS[b.fallbackProvider] || b.fallbackProvider === nextProvider))
       return fail(400, 'Choose a different supported second provider.');
     await saveSetting(env, 'ai_fallback_provider', b.fallbackProvider);
   }
   if (typeof b.model === 'string') await saveSetting(env, 'ai_model', b.model.trim().slice(0, 120));
+  if (typeof b.fallbackModel === 'string')
+    await saveSetting(env, 'ai_fallback_model', b.fallbackModel.trim().slice(0, 120));
   if (typeof b.baseUrl === 'string') {
     const url = b.baseUrl.trim();
     if (url && !validBaseUrl(url))
       return fail(400, 'The base URL must start with https:// (http:// is only allowed for localhost).');
+    if (url) {
+      const parsed = new URL(url);
+      const local = ['localhost', '127.0.0.1'].includes(parsed.hostname);
+      if (!local && url.replace(/\/+$/, '') !== PROVIDERS[nextProvider].base)
+        return fail(400, 'Only the selected Groq or Gemini endpoint can be configured.');
+    }
     await saveSetting(env, 'ai_base_url', url);
   }
-  if (typeof b.apiKey === 'string' && b.apiKey.trim()) await storeKey(env, b.apiKey.trim());
+  if (typeof b.apiKey === 'string' && b.apiKey.trim()) {
+    await storeKey(env, b.apiKey.trim());
+    await storeProviderKey(env, nextProvider, b.apiKey.trim());
+  }
   if (b.clearKey === true) await saveSetting(env, 'ai_key', '');
-  if (typeof b.geminiApiKey === 'string' && b.geminiApiKey.trim())
-    await storeGeminiKey(env, b.geminiApiKey.trim());
   if (b.clearGeminiKey === true) await saveSetting(env, 'ai_gemini_key', '');
   if (b.providerKeys && typeof b.providerKeys === 'object' && !Array.isArray(b.providerKeys)) {
     for (const [provider, value] of Object.entries(b.providerKeys)) {

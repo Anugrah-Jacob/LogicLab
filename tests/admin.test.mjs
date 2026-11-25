@@ -4,12 +4,14 @@
 import http from 'node:http';
 import { chromium } from 'playwright';
 import { test, eq, ok, summary } from './harness.mjs';
+import { startApp } from './app-server.mjs';
 
-const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8788').replace(/\/$/, '') + '/';
 const SETUP = process.env.ADMIN_SETUP_CODE || 'choose-a-one-time-setup-code';
+const app = process.env.BASE_URL ? null : await startApp({ ADMIN_SETUP_CODE: SETUP });
+const BASE = (process.env.BASE_URL || app.url).replace(/\/$/, '') + '/';
 const stamp = Date.now();
 
-/* ---- a fake AI provider that speaks both the OpenAI and the Anthropic format ---- */
+/* ---- fake OpenAI-compatible provider ---- */
 const seen = [];
 let expectedKey = 'sk-test-AAAA1111';
 let mockDelayMs = 0;
@@ -91,13 +93,6 @@ const mock = http.createServer(async (req, res) => {
     if (toolMessages === 1) return call('get_state', {});
     return send(200, {
       choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'All done.' } }]
-    });
-  }
-  if (req.url === '/v1/messages') {
-    if (req.headers['x-api-key'] !== expectedKey) return send(401, { error: { message: 'bad key' } });
-    return send(200, {
-      content: [{ type: 'text', text: 'Hello from the Claude mock' }],
-      stop_reason: 'end_turn'
     });
   }
   send(404, { error: { message: 'unknown path ' + req.url } });
@@ -238,21 +233,18 @@ await test('an administrator cannot lock everyone out', async () => {
   );
 });
 
-await test('AI provider settings: validation, encrypted key, masked in responses, connection test', async () => {
+await test('Groq and Gemini settings: validation, encrypted key, masking and connection test', async () => {
   const before = (await admin.get('/admin/settings')).data;
   eq([before.hasKey, before.provider], [false, 'groq']);
-  ok(
-    before.providers.groq && before.providers.nvidia && before.providers.openrouter,
-    'presets for Groq, NVIDIA Build and OpenRouter'
-  );
+  eq(Object.keys(before.providers).sort(), ['gemini', 'groq']);
   eq((await admin.put('/admin/settings', { provider: 'nope' })).status, 400);
   eq(
-    (await admin.put('/admin/settings', { provider: 'custom', baseUrl: 'http://example.com/v1' })).status,
+    (await admin.put('/admin/settings', { provider: 'openai' })).status,
     400,
-    'plain http is refused except for localhost'
+    'providers outside Groq and Gemini are refused'
   );
   const saved = await admin.put('/admin/settings', {
-    provider: 'custom',
+    provider: 'groq',
     baseUrl: MOCK + '/v1',
     model: 'mock-model',
     apiKey: expectedKey,
@@ -263,13 +255,13 @@ await test('AI provider settings: validation, encrypted key, masked in responses
   ok(!raw.includes(expectedKey), 'the key is never returned');
   eq([saved.data.hasKey, saved.data.keyHint, saved.data.model], [true, '••••1111', 'mock-model']);
   await admin.put('/admin/settings', {
-    provider: 'custom',
-    providerKeys: { custom: expectedKey, groq: 'gsk-test-MULTI2222' }
+    provider: 'groq',
+    providerKeys: { groq: expectedKey, gemini: 'gemini-test-MULTI2222' }
   });
   const multi = (await admin.get('/admin/settings')).data;
-  eq([multi.providers.custom.hasKey, multi.providers.groq.hasKey], [true, true]);
-  eq([multi.providers.custom.keyHint, multi.providers.groq.keyHint], ['••••1111', '••••2222']);
-  ok(!JSON.stringify(multi).includes('gsk-test-MULTI2222'), 'provider keys are never returned');
+  eq([multi.providers.groq.hasKey, multi.providers.gemini.hasKey], [true, true]);
+  eq([multi.providers.groq.keyHint, multi.providers.gemini.keyHint], ['••••1111', '••••2222']);
+  ok(!JSON.stringify(multi).includes('gemini-test-MULTI2222'), 'provider keys are never returned');
   const good = (await admin.post('/admin/settings/test')).data;
   eq([good.ok, good.reply], [true, 'OK']);
   ok(seen.at(-1).headers.authorization === 'Bearer ' + expectedKey, 'the saved key was used');
@@ -301,12 +293,13 @@ await test('AI requests from different users share one provider queue', async ()
 await test('Groq rate headers limit output and prevent requests over the shared token budget', async () => {
   await admin.put('/admin/settings', {
     provider: 'groq',
+    fallbackProvider: '',
     baseUrl: MOCK + '/v1',
     model: 'llama-3.3-70b-versatile'
   });
   const callsBefore = seen.length;
   const tooLong = await bob.post('/ai', {
-    messages: [{ role: 'user', content: 'x'.repeat(20000) }]
+    messages: [{ role: 'user', content: 'x'.repeat(600000) }]
   });
   eq(tooLong.status, 413, 'oversized conversation is rejected before contacting Groq');
   eq(seen.length, callsBefore);
@@ -330,11 +323,8 @@ await test('Groq rate headers limit output and prevent requests over the shared 
   eq(blocked.status, 429);
   ok(blocked.data.retryAfter > 0, 'response includes a retry delay');
   eq(seen.length, callsAfterFirst, 'the persisted Groq budget blocks the next call');
-  await admin.put('/admin/settings', {
-    provider: 'custom',
-    baseUrl: MOCK + '/v1',
-    model: 'mock-model'
-  });
+  if (app) await app.env.DB.prepare("DELETE FROM settings WHERE k LIKE 'ai_groq_rate_state:%'").run();
+  await admin.put('/admin/settings', { provider: 'groq', baseUrl: MOCK + '/v1', model: 'mock-model' });
 });
 
 const BROWSER = await chromium.launch();
@@ -363,7 +353,7 @@ async function browserFor(who) {
   return { ctx, page, problems };
 }
 
-await test('the AI agent works through a non-Claude (OpenAI-compatible) provider', async () => {
+await test('the AI agent works through Groq via LangChain', async () => {
   const { ctx, page, problems } = await browserFor(bob);
   seen.length = 0;
   await page.goto(BASE);
@@ -393,35 +383,14 @@ await test('the AI agent works through a non-Claude (OpenAI-compatible) provider
     'tool results are sent back as tool messages'
   );
   eq(problems, []);
+  if (app) await app.env.DB.prepare("DELETE FROM settings WHERE k LIKE 'ai_groq_rate_state:%'").run();
   await ctx.close();
 });
-await test('the Anthropic format works with a custom base URL', async () => {
-  await admin.put('/admin/settings', {
-    provider: 'anthropic',
-    baseUrl: MOCK,
-    model: 'claude-test',
-    apiKey: expectedKey
-  });
-  seen.length = 0;
-  const r = await bob.post('/ai', {
-    messages: [{ role: 'user', content: 'hi' }],
-    context: 'Project "x". Parts: none.'
-  });
-  eq([r.status, r.data.content[0].text], [200, 'Hello from the Claude mock']);
-  const req = seen.at(-1);
+await test('provider settings reject non-Groq/Gemini providers and endpoints', async () => {
+  eq((await admin.put('/admin/settings', { provider: 'anthropic' })).status, 400);
   eq(
-    [
-      req.url,
-      req.headers['x-api-key'],
-      !!req.headers['anthropic-version'],
-      req.body.model,
-      req.body.tools.length > 0
-    ],
-    ['/v1/messages', expectedKey, true, 'claude-test', true]
-  );
-  ok(
-    req.body.system.includes('LogicLab AI') && req.body.system.includes('Project "x"'),
-    'system prompt includes the canvas summary'
+    (await admin.put('/admin/settings', { provider: 'groq', baseUrl: 'https://other.example/v1' })).status,
+    400
   );
 });
 await test('per-user limits, the AI switch and closed sign-ups are enforced', async () => {
@@ -496,14 +465,11 @@ await test('admin panel: sign-in screen, access control, dashboard, users, setti
   await page.waitForSelector('#aiform');
   await page.selectOption('[name=provider]', 'groq');
   eq(await page.inputValue('[name=model]'), 'llama-3.3-70b-versatile');
-  await page.selectOption('[name=provider]', 'custom');
   await page.fill('[name=model]', 'mock-model');
-  await page.fill('[name=baseUrl]', MOCK + '/v1');
   expectedKey = 'sk-test-UIKEY333';
   await page.locator('[name=apiKey]').fill(expectedKey);
-  await page.selectOption('[name=fallbackProvider]', 'groq');
+  await page.selectOption('[name=fallbackProvider]', 'gemini');
   await page.locator('[name=fallbackApiKey]').fill('gsk-test-UIKEY444');
-  await page.locator('[name=nvidiaApiKey]').fill('nvapi-test-UIKEY555');
   await page.click('#aiform button.pr');
   await page.waitForFunction(() => document.querySelector('[name=apiKey]')?.placeholder.includes('••••'));
   ok(
@@ -523,4 +489,5 @@ await test('admin panel: sign-in screen, access control, dashboard, users, setti
 
 await BROWSER.close();
 mock.close();
+if (app) await app.close();
 summary();
