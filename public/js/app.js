@@ -886,7 +886,9 @@
     if (bb) bbDraw(x, t);
     else wires.forEach((w) => wdraw(x, w, pcb, t, bb));
     if (pend) {
-      poly(x, route({ bends: pend.bends }, op(pend.n, pend.i), mouse).P, pcb ? 3 : 12);
+      const target = pinHit(mouse, 'input');
+      const end = target && !target.out ? { x: target.x, y: target.y } : mouse;
+      poly(x, route({ bends: pend.bends }, op(pend.n, pend.i), end).P, pcb ? 3 : 12);
       x.lineWidth = 2;
       x.strokeStyle = cs('--ac');
       x.setLineDash([6, 6]);
@@ -3246,7 +3248,17 @@
       if (x >= n.x && x <= n.x + W && y >= n.y && y <= n.y + hh(n)) return n;
     }
   }
-  function pinHit(p) {
+  function pinHit(p, only) {
+    let best = null,
+      bestDistance = PR / Math.max(0.25, view.s);
+    const consider = (n, i, out, q) => {
+      if ((only == 'input' && out) || (only == 'output' && !out)) return;
+      const distance = Math.hypot(q.x - p.x, q.y - p.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { n, i, out, x: q.x, y: q.y };
+      }
+    };
     for (let j = notes.length - 1; j >= 0; j--) {
       const note = notes[j];
       if (note.t != 'symbol') continue;
@@ -3256,22 +3268,22 @@
       ]) {
         for (let i = 0; i < list.length; i++) {
           const q = symbolPort(note, input, i);
-          if (Math.hypot(q.x - p.x, q.y - p.y) >= PR) continue;
           const n = idm.get(list[i].node);
-          if (n) return { n, i: list[i].pin, out: Number(!input) };
+          if (n) consider(n, list[i].pin, Number(!input), q);
         }
       }
     }
     for (const n of nodes) {
       for (let i = 0; i < nO(n); i++) {
         const q = op(n, i);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < PR) return { n, i, out: 1 };
+        consider(n, i, 1, q);
       }
       for (let i = 0; i < nI(n); i++) {
         const q = ip(n, i);
-        if (Math.hypot(q.x - p.x, q.y - p.y) < PR) return { n, i, out: 0 };
+        consider(n, i, 0, q);
       }
     }
+    return best;
   }
   function menu(x, y, items) {
     const m = $('#cm');
@@ -3846,19 +3858,19 @@
         }
       }
       if (tool == 'wire') {
-        if (ph && ph.out && !pend) pend = { n: ph.n, i: ph.i, bends: [] };
-        else if (pend && ph && !ph.out) {
-          link(pend.n, pend.i, ph.n, ph.i, pend.bends);
+        const wirePin = pinHit(p, pend ? 'input' : 'output');
+        if (wirePin && wirePin.out && !pend) pend = { n: wirePin.n, i: wirePin.i, bends: [] };
+        else if (pend && wirePin) {
+          link(pend.n, pend.i, wirePin.n, wirePin.i, pend.bends);
           pend = null;
-        } else if (pend) {
-          pend.bends.push({ x: gs(p.x), y: gs(p.y) });
-          dirty = true;
         }
+        dirty = true;
         return;
       }
       if (pend) {
-        if (ph && !ph.out) {
-          link(pend.n, pend.i, ph.n, ph.i);
+        const target = pinHit(p, 'input');
+        if (target) {
+          link(pend.n, pend.i, target.n, target.i);
           pend = null;
           return;
         }
@@ -4058,7 +4070,7 @@
         return;
       }
       if (pend && Math.hypot(p.x - pend.sx, p.y - pend.sy) > 14) {
-        const ph = pinHit(p);
+        const ph = pinHit(p, 'input');
         if (ph && !ph.out) link(pend.n, pend.i, ph.n, ph.i);
         pend = null;
       }
@@ -6231,7 +6243,7 @@
     const su = AMODE == 'signup',
       f = $('#au').elements;
     $('#at').textContent = su ? 'Create your account' : 'Welcome back';
-    $('#as').textContent =
+    $('#authmsg').textContent =
       msg ||
       (su
         ? 'Get started with LogicLab and build amazing circuits.'
@@ -6798,12 +6810,12 @@
     if (retryButton)
       retryButton.onclick = async () => {
         AI.busy = 1;
-        $('#as').disabled = true;
+        $('#aisend').disabled = true;
         try {
           await runAgent(step, requestBody, node);
         } finally {
           AI.busy = 0;
-          $('#as').disabled = false;
+          $('#aisend').disabled = false;
         }
       };
     if (error.status === 401) {
@@ -6884,14 +6896,14 @@
     if (!USER) return authOpen('login', 'Sign in to use LogicLab AI.');
     if (!navigator.onLine) return toast('LogicLab AI needs an internet connection.', 'warn');
     AI.busy = 1;
-    $('#as').disabled = true;
+    $('#aisend').disabled = true;
     aiAdd('u', esc(text));
     AI.msgs.push({ role: 'user', content: text });
     try {
       await runAgent(0);
     } finally {
       AI.busy = 0;
-      $('#as').disabled = false;
+      $('#aisend').disabled = false;
     }
   }
   async function runAgent(startStep, retryBody, assistantNode = null) {

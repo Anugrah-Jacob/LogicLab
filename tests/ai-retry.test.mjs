@@ -97,7 +97,7 @@ await test('AI retries the failed step and continues without replaying completed
   await page.click('.tc[data-k="full-adder"]');
   await page.click('#aib');
   await page.fill('#ai #aq', 'Build a simple circuit.');
-  await page.click('#ai #as');
+  await page.click('#ai #aisend');
   await page.waitForSelector('.ai-approval [data-ai-apply]', { timeout: 3000 });
   await page.click('.ai-approval [data-ai-apply]');
   await page.waitForTimeout(6000);
@@ -121,7 +121,7 @@ await test('AI retries the failed step and continues without replaying completed
 
 await test('AI builds 1,000 gates and sends the full compact canvas context', async () => {
   await page.fill('#ai #aq', 'Build a large circuit.');
-  await page.click('#ai #as');
+  await page.click('#ai #aisend');
   await page.waitForSelector('.ai-approval [data-ai-apply]', { timeout: 3000 });
   await page.click('.ai-approval [data-ai-apply]');
   await page.waitForFunction(() => LogicLab.parts().length === 1000);
@@ -134,12 +134,12 @@ await test('AI builds 1,000 gates and sends the full compact canvas context', as
     'context includes the large circuit netlist (' + requests[4].context.length + ' chars)'
   );
   ok((await page.locator('#am').innerText()).includes('The 1,000-part circuit is ready.'));
-  await page.waitForFunction(() => !document.querySelector('#as').disabled);
+  await page.waitForFunction(() => !document.querySelector('#aisend').disabled);
 });
 
 await test('AI cancel keeps the existing circuit unchanged', async () => {
   await page.fill('#ai #aq', 'Clear the circuit.');
-  await page.click('#ai #as');
+  await page.click('#ai #aisend');
   const cancel = page.locator('.ai-approval [data-ai-cancel]');
   await cancel.waitFor({ state: 'visible', timeout: 10000 });
   await cancel.click();

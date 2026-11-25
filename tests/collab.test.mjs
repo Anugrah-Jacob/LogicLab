@@ -570,7 +570,7 @@ await test('login offers account creation when the email is not registered', asy
   await A.page.waitForFunction(() =>
     document.querySelector('#at').textContent.includes('Create your account')
   );
-  ok((await A.page.locator('#mauth #as').innerText()).includes('No account was found'));
+  ok((await A.page.locator('#mauth #authmsg').innerText()).includes('No account was found'));
   eq(await A.page.inputValue('[name=email]'), 'missing-account@example.com');
   ok(await A.page.locator('[name=fname]').isVisible(), 'signup form is shown');
   await A.ctx.close();

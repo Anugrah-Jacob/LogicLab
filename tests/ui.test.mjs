@@ -82,16 +82,40 @@ await test('deep link /?template=<id> opens that example', async () => {
   eq(await p.evaluate(() => location.search), '', 'query string is cleaned up');
   await p.close();
 });
+await test('login message is not styled as the AI send button', async () => {
+  await pg.click('#av');
+  ok(await pg.isVisible('#mauth'), 'login modal opens');
+  const layout = await pg.evaluate(() => {
+    const message = document.querySelector('#authmsg'),
+      send = document.querySelector('#aisend'),
+      rect = message.getBoundingClientRect();
+    return {
+      messageCount: document.querySelectorAll('#authmsg').length,
+      sendCount: document.querySelectorAll('#aisend').length,
+      messageWidth: rect.width,
+      messageHeight: rect.height,
+      sendWidth: getComputedStyle(send).width
+    };
+  });
+  eq(layout.messageCount, 1);
+  eq(layout.sendCount, 1);
+  ok(layout.messageWidth > 250, 'login message should span the modal, not collapse into an icon');
+  ok(layout.messageHeight < 60, 'login message should not overlap the form');
+  eq(layout.sendWidth, '50px', 'AI send button keeps its compact size');
+  await pg.click('#aoff');
+});
 await test('editor uses one workspace without a separate mode selector', async () => {
   ok(!(await pg.locator('#emode').count()), 'the mode selector is removed');
   ok(await pg.isVisible('#pal'), 'parts palette remains available');
   ok(await pg.isVisible('#dt'), 'drawing tools remain available');
   ok(await pg.isVisible('#side .stabs'), 'analysis remains available');
+  eq(await pg.locator('#tpal use').getAttribute('href'), '#icon-tool');
+  eq(await pg.locator('#snp use').getAttribute('href'), '#icon-grid');
 });
 await test('freeform dragging button toggles grid snapping on and off', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
   const button = pg.locator('#snp');
-  eq(await button.innerText(), 'Freeform');
+  eq(await button.getAttribute('aria-label'), 'Toggle freeform dragging');
   eq(await button.getAttribute('aria-pressed'), 'false');
   eq(await pg.evaluate(() => LogicLab.exportProject().snap), true);
   await button.click();
@@ -443,7 +467,7 @@ await test('gate and wire colors can be edited in the inspector', async () => {
   await pg.locator('#wcolor').press('Tab');
   eq(await pg.evaluate(() => LogicLab.exportProject().wires[0].color), '#1b73e8');
 });
-await test('Wire tool connects pins through multiple clicks and keeps bends', async () => {
+await test('Wire tool connects output and input with two clicks and ignores empty clicks', async () => {
   await pg.evaluate(() =>
     LogicLab.build({
       parts: [
@@ -465,47 +489,65 @@ await test('Wire tool connects pins through multiple clicks and keeps bends', as
       screen = (x, y) => ({ x: v.x + x * v.s, y: v.y + y * v.s });
     return {
       start: screen(a.x + 76, a.y + h(a) / 2),
-      bend: screen((a.x + b.x) / 2, Math.max(a.y, b.y) + 72),
+      empty: screen((a.x + b.x) / 2, Math.max(a.y, b.y) + 72),
       end: screen(b.x, b.y + h(b) / 2)
     };
   });
   await pg.click('#tw');
   await pg.mouse.click(box.x + pts.start.x, box.y + pts.start.y);
-  await pg.mouse.click(box.x + pts.bend.x, box.y + pts.bend.y);
+  await pg.mouse.click(box.x + pts.empty.x, box.y + pts.empty.y);
+  eq(
+    (await pg.evaluate(() => LogicLab.exportProject().wires)).length,
+    1,
+    'empty click does not complete a wire'
+  );
   await pg.mouse.click(box.x + pts.end.x, box.y + pts.end.y);
   const doc = await pg.evaluate(() => LogicLab.exportProject());
-  ok(
-    doc.wires.some((w) => w.bends && w.bends.length === 1),
-    'new wire should retain its bend'
-  );
   ok(
     doc.wires.some(
       (w) =>
         w.a === doc.nodes.find((n) => n.name === 'A').id && w.b === doc.nodes.find((n) => n.name === 'U2').id
     )
   );
-  await pg.click('#tsel');
-  await pg.keyboard.press('Control+a');
-  const before = await pg.evaluate(() => {
+  ok(
+    !doc.wires.find((w) => w.b === doc.nodes.find((n) => n.name === 'U2').id).bends,
+    'wire uses automatic routing'
+  );
+});
+await test('wire snapping selects the closest of multiple gate inputs', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'G', type: 'AND' }
+      ]
+    })
+  );
+  const box = await pg.locator('#cv').boundingBox();
+  const pts = await pg.evaluate(() => {
     const d = LogicLab.exportProject(),
-      w = d.wires.find((x) => x.bends && x.bends.length),
-      n = d.nodes.find((x) => x.name === 'U2'),
-      v = LogicLabHost.view().v;
+      a = d.nodes.find((n) => n.name === 'A'),
+      g = d.nodes.find((n) => n.name === 'G'),
+      v = LogicLabHost.view().v,
+      screen = (x, y) => ({ x: v.x + x * v.s, y: v.y + y * v.s });
     return {
-      bend: w.bends[0],
-      point: { x: v.x + (n.x + 38) * v.s, y: v.y + (n.y + 20) * v.s }
+      start: screen(a.x + 76, a.y + 22),
+      nearSecondInput: screen(g.x, g.y + 48 / 2 + 1.5),
+      secondInput: 1
     };
   });
-  await pg.mouse.move(box.x + before.point.x, box.y + before.point.y);
-  await pg.mouse.down();
-  await pg.mouse.move(box.x + before.point.x + 72, box.y + before.point.y + 32);
-  await pg.mouse.up();
-  const bendAfter = await pg.evaluate(
-    () => LogicLab.exportProject().wires.find((w) => w.bends && w.bends.length).bends[0]
-  );
-  ok(
-    bendAfter.x !== before.bend.x || bendAfter.y !== before.bend.y,
-    'routing bends should move with a multi-part circuit selection'
+  await pg.click('#tw');
+  await pg.mouse.click(box.x + pts.start.x, box.y + pts.start.y);
+  await pg.mouse.click(box.x + pts.nearSecondInput.x, box.y + pts.nearSecondInput.y);
+  const doc = await pg.evaluate(() => LogicLab.exportProject()),
+    a = doc.nodes.find((n) => n.name === 'A'),
+    g = doc.nodes.find((n) => n.name === 'G'),
+    wire = doc.wires.find((w) => w.a === a.id && w.b === g.id);
+  ok(wire, 'wire should connect to the nearby gate');
+  eq(
+    wire.bp,
+    pts.secondInput,
+    'closest input pin should be selected even when another input is also in range'
   );
 });
 

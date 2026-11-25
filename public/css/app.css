@@ -206,12 +206,6 @@ main[data-n='2'] #pcb {
   padding: 0;
   font-size: 16px;
 }
-#tb #snp {
-  width: auto;
-  min-width: 34px;
-  padding: 0 7px;
-  font-size: 11px;
-}
 #zm {
   left: 10px;
   bottom: 10px;
@@ -1358,7 +1352,9 @@ footer {
   letter-spacing: -0.035em;
 }
 #mauth .mc > p {
+  width: 100%;
   max-width: 330px;
+  box-sizing: border-box;
   margin: 0 auto 4px;
   line-height: 1.55;
 }
@@ -2061,7 +2057,7 @@ footer {
 #aq::placeholder {
   color: #9ca9d2;
 }
-#as {
+#aisend {
   width: 50px;
   height: 50px;
   flex: none;
