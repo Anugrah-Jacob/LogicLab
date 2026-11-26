@@ -19,6 +19,13 @@ await page.route('**/api/**', async (route) => {
   if (path === '/api/ai') {
     const body = route.request().postDataJSON();
     requests.push(body);
+    if (body.message.toLowerCase().includes('master-slave'))
+      return route.fulfill({
+        json: {
+          tool: { expression: 'MSDFF(D,CLK)', mode: body.mode },
+          chat: 'The master-slave D flip-flop captures D on the rising clock edge and holds Q between edges.'
+        }
+      });
     if (body.expression)
       return route.fulfill({ json: { tool: { expression: body.expression, mode: body.mode }, chat: body.expression } });
     aiCalls++;
@@ -182,6 +189,42 @@ await test('expression builder sends only the raw expression and builds the retu
   eq(
     await page.evaluate(() => LogicLab.analysis().rows.map((row) => row.o[0])),
     [0, 0, 1, 0, 1, 0, 1, 0]
+  );
+});
+
+await test('AI builds a working master-slave D flip-flop from a sequential expression', async () => {
+  await page.evaluate(() => LogicLab.load(''));
+  await page.click('#aib');
+  await page.selectOption('#aimode', 'overwrite');
+  await page.fill('#ai #aq', 'Explain a master-slave flip-flop and build one so I can see it work.');
+  await page.click('#ai #aisend');
+  await page.waitForFunction(() => LogicLab.parts().some((part) => part.type === 'D'));
+  const project = await page.evaluate(() => LogicLab.exportProject()),
+    request = requests.at(-1),
+    flipFlop = project.nodes.find((part) => part.type === 'D');
+  eq(request.mode, 'overwrite');
+  eq(request.expression, '');
+  ok(flipFlop, 'a D flip-flop component is present');
+  ok(project.nodes.some((part) => part.type === 'CLK'), 'clock source is present');
+  eq(project.nodes.filter((part) => part.type === 'LED').map((part) => part.name), ['Q', 'Qbar']);
+  eq(project.wires.length, 4, 'data, clock, Q, and Qbar are all connected');
+
+  await page.evaluate(() => {
+    LogicLab.pause();
+    LogicLab.setInput('D', 1);
+    LogicLab.step(10);
+  });
+  let outputs = await page.evaluate(() => LogicLab.outputs());
+  eq([outputs['expression-q'], outputs['expression-qbar']], [1, 0], 'Q captures D on the rising edge');
+  await page.evaluate(() => {
+    LogicLab.setInput('D', 0);
+    LogicLab.step(5);
+  });
+  outputs = await page.evaluate(() => LogicLab.outputs());
+  eq(outputs['expression-q'], 1, 'Q holds its value while the clock remains high');
+  ok(
+    (await page.locator('#am').innerText()).includes('captures D on the rising clock edge'),
+    'assistant explains the behavior in chat'
   );
 });
 

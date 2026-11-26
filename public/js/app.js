@@ -7134,6 +7134,39 @@
   }
   function expressionNetlist(expression) {
     expression = expression.trim();
+    const sequential = expression.match(/^(MSDFF|MASTER_SLAVE_D|DFF|TFF|JKFF)\s*\(([^()]*)\)$/i);
+    if (sequential) {
+      const kind = sequential[1].toUpperCase(),
+        args = sequential[2].split(',').map((part) => part.trim()),
+        config = {
+          MSDFF: { type: 'D', data: ['D'], labels: ['D'], title: 'Master-slave D flip-flop' },
+          MASTER_SLAVE_D: { type: 'D', data: ['D'], labels: ['D'], title: 'Master-slave D flip-flop' },
+          DFF: { type: 'D', data: ['D'], labels: ['D'], title: 'D flip-flop' },
+          TFF: { type: 'T', data: ['T'], labels: ['T'], title: 'T flip-flop' },
+          JKFF: { type: 'JK', data: ['J', 'K'], labels: ['J', 'K'], title: 'JK flip-flop' }
+        }[kind],
+        parts = [],
+        wires = [],
+        expected = config.data.length + 1;
+      if (args.length !== expected || args.some((name) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)))
+        throw new Error(`${kind} expects ${expected} signal names: ${config.data.concat('CLK').join(', ')}.`);
+      config.data.forEach((pin, index) => {
+        const id = 'expression-input-' + index;
+        parts.push({ id, type: 'IN', name: args[index] });
+        wires.push({ from: id + '.0', to: 'expression-ff.' + pin });
+      });
+      const clockId = 'expression-clock';
+      parts.push({ id: clockId, type: 'CLK', name: args[args.length - 1] });
+      wires.push({ from: clockId + '.0', to: 'expression-ff.>' });
+      parts.push({ id: 'expression-ff', type: config.type, name: config.title });
+      parts.push({ id: 'expression-q', type: 'LED', name: 'Q' });
+      parts.push({ id: 'expression-qbar', type: 'LED', name: 'Qbar' });
+      wires.push(
+        { from: 'expression-ff.0', to: 'expression-q.0' },
+        { from: 'expression-ff.1', to: 'expression-qbar.0' }
+      );
+      return { parts, wires };
+    }
     const tokens = [],
       tokenPattern = /\s*(\|\||&&|[A-Za-z_][A-Za-z0-9_]*|[01]|[!~¬'′+|*·&^()])/y;
     let offset = 0;
