@@ -11,6 +11,15 @@ const post = (p, body, headers = {}, cookie = '') =>
     headers: { 'content-type': 'application/json', cookie, ...headers },
     body: JSON.stringify(body)
   });
+const aiPayload = (mode = 'read', message = 'hi') => ({
+  project_name: 'Cloud test project',
+  mode,
+  message,
+  chat_history: [],
+  components: ['IN', 'XOR', 'LED'],
+  expression: '',
+  project_explanation: ''
+});
 const email = 'test' + Date.now() + '@example.com';
 let cookie = '';
 
@@ -89,8 +98,8 @@ await test('project CRUD, last-write-wins conflicts and validation', async () =>
   eq((await fetch(BASE + 'api/projects/p123abc', { headers: { cookie } })).status, 404);
 });
 await test('AI endpoint needs a session and reports a missing key', async () => {
-  eq((await post('/ai', { messages: [{ role: 'user', content: 'hi' }] })).status, 401);
-  const r = await post('/ai', { messages: [{ role: 'user', content: 'hi' }] }, {}, cookie.replace('', ''));
+  eq((await post('/ai', aiPayload())).status, 401);
+  const r = await post('/ai', aiPayload(), {}, cookie.replace('', ''));
   ok([503, 429, 502].includes(r.status), 'status ' + r.status);
 });
 
@@ -107,44 +116,12 @@ page.on('console', (m) => {
 const calls = [];
 await page.route('**/api/ai', (route) => {
   const body = JSON.parse(route.request().postData());
-  const n = body.messages.length;
-  calls.push(n);
-  const reply =
-    n === 1
-      ? {
-          content: [
-            { type: 'text', text: 'Building a **half adder**.' },
-            {
-              type: 'tool_use',
-              id: 't1',
-              name: 'build_circuit',
-              input: {
-                replace: true,
-                parts: [
-                  { id: 'a', type: 'IN', name: 'A', value: 1 },
-                  { id: 'b', type: 'IN', name: 'B', value: 1 },
-                  { id: 'x', type: 'XOR', name: 'SUM' },
-                  { id: 'c', type: 'AND', name: 'CARRY' },
-                  { id: 's', type: 'LED', name: 'S' },
-                  { id: 'k', type: 'LED', name: 'C' }
-                ],
-                wires: [
-                  { from: 'a', to: 'x' },
-                  { from: 'b', to: 'x' },
-                  { from: 'a', to: 'c' },
-                  { from: 'b', to: 'c' },
-                  { from: 'x', to: 's' },
-                  { from: 'c', to: 'k' }
-                ]
-              }
-            }
-          ],
-          stop_reason: 'tool_use'
-        }
-      : n === 3
-        ? { content: [{ type: 'tool_use', id: 't2', name: 'get_state', input: {} }], stop_reason: 'tool_use' }
-        : { content: [{ type: 'text', text: 'Verified.' }], stop_reason: 'end_turn' };
-  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(reply) });
+  calls.push(body);
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ tool: { expression: 'A^B', mode: body.mode }, chat: 'Verified.' })
+  });
 });
 await page.goto(BASE);
 await page.waitForFunction(() => window.LogicLab);
@@ -199,8 +176,13 @@ await test('the AI agent builds a circuit, checks it, and answers', async () => 
   await page.waitForFunction(() => document.querySelector('#am').innerText.includes('Verified.'), null, {
     timeout: 15000
   });
-  eq(await page.evaluate(() => LogicLab.parts().length), 6);
-  eq(calls.slice(0, 3), [1, 3, 5]);
+  eq(await page.evaluate(() => LogicLab.parts().length), 4);
+  eq(calls.length, 1);
+  eq(Object.keys(calls[0]).sort(), [
+    'chat_history', 'components', 'expression', 'message', 'mode', 'project_explanation', 'project_name'
+  ]);
+  eq(calls[0].mode, 'overwrite');
+  eq(calls[0].expression, '');
   const text = await page.locator('#am').innerText();
   ok(text.includes('Verified.'));
   eq(await page.locator('#am .bb.a').count(), 1, 'tool steps collapse into the final assistant message');

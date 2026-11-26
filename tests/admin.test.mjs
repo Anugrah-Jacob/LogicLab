@@ -10,6 +10,15 @@ const SETUP = process.env.ADMIN_SETUP_CODE || 'choose-a-one-time-setup-code';
 const app = process.env.BASE_URL ? null : await startApp({ ADMIN_SETUP_CODE: SETUP });
 const BASE = (process.env.BASE_URL || app.url).replace(/\/$/, '') + '/';
 const stamp = Date.now();
+const aiPayload = ({ mode = 'read', message = 'hi', project_explanation = '' } = {}) => ({
+  project_name: 'Test project',
+  mode,
+  message,
+  chat_history: [],
+  components: ['IN', 'AND', 'OR', 'XOR', 'NOT', 'LED'],
+  expression: '',
+  project_explanation
+});
 
 /* ---- fake OpenAI-compatible provider ---- */
 const seen = [];
@@ -30,7 +39,6 @@ const mock = http.createServer(async (req, res) => {
   if (req.url === '/v1/chat/completions') {
     if (req.headers.authorization !== 'Bearer ' + expectedKey)
       return send(401, { error: { message: 'bad key' } });
-    const toolMessages = body.messages.filter((m) => m.role === 'tool').length;
     const call = async (name, args) => {
       activeMockRequests++;
       maxActiveMockRequests = Math.max(maxActiveMockRequests, activeMockRequests);
@@ -42,7 +50,7 @@ const mock = http.createServer(async (req, res) => {
               finish_reason: 'tool_calls',
               message: {
                 role: 'assistant',
-                content: null,
+                content: 'All done.',
                 tool_calls: [
                   {
                     id: 'call_' + name,
@@ -58,7 +66,7 @@ const mock = http.createServer(async (req, res) => {
         activeMockRequests--;
       }
     };
-    if (!body.tools) {
+    if (!body.tools || !body.tools.length) {
       activeMockRequests++;
       maxActiveMockRequests = Math.max(maxActiveMockRequests, activeMockRequests);
       try {
@@ -70,30 +78,7 @@ const mock = http.createServer(async (req, res) => {
         activeMockRequests--;
       }
     }
-    if (toolMessages === 0)
-      return call('build_circuit', {
-        replace: true,
-        parts: [
-          { id: 'a', type: 'IN', name: 'A', value: 1 },
-          { id: 'b', type: 'IN', name: 'B', value: 1 },
-          { id: 'x', type: 'XOR', name: 'SUM' },
-          { id: 'c', type: 'AND', name: 'CARRY' },
-          { id: 's', type: 'LED', name: 'S' },
-          { id: 'k', type: 'LED', name: 'C' }
-        ],
-        wires: [
-          { from: 'a', to: 'x' },
-          { from: 'b', to: 'x' },
-          { from: 'a', to: 'c' },
-          { from: 'b', to: 'c' },
-          { from: 'x', to: 's' },
-          { from: 'c', to: 'k' }
-        ]
-      });
-    if (toolMessages === 1) return call('get_state', {});
-    return send(200, {
-      choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'All done.' } }]
-    });
+    return call('apply_expression', { expression: 'A^B', mode: 'overwrite' });
   }
   send(404, { error: { message: 'unknown path ' + req.url } });
 });
@@ -280,7 +265,7 @@ await test('Groq and Gemini settings: validation, encrypted key, masking and con
 await test('AI requests from different users share one provider queue', async () => {
   mockDelayMs = 100;
   maxActiveMockRequests = 0;
-  const payload = { messages: [{ role: 'user', content: 'Reply with OK.' }] };
+    const payload = aiPayload({ mode: 'overwrite', message: 'Reply with OK.' });
   const responses = await Promise.all([admin.post('/ai', payload), bob.post('/ai', payload)]);
   mockDelayMs = 0;
   eq(
@@ -298,9 +283,7 @@ await test('Groq rate headers limit output and prevent requests over the shared 
     model: 'llama-3.3-70b-versatile'
   });
   const callsBefore = seen.length;
-  const tooLong = await bob.post('/ai', {
-    messages: [{ role: 'user', content: 'x'.repeat(600000) }]
-  });
+    const tooLong = await bob.post('/ai', aiPayload({ project_explanation: 'x'.repeat(600000) }));
   eq(tooLong.status, 413, 'oversized conversation is rejected before contacting Groq');
   eq(seen.length, callsBefore);
 
@@ -312,14 +295,14 @@ await test('Groq rate headers limit output and prevent requests over the shared 
     'x-ratelimit-remaining-requests': '99',
     'x-ratelimit-reset-requests': '1d'
   };
-  const first = await bob.post('/ai', { messages: [{ role: 'user', content: 'Reply with OK.' }] });
+    const first = await bob.post('/ai', aiPayload({ message: 'Reply with OK.' }));
   eq(first.status, 200);
   const providerRequest = seen.at(-1);
   ok(providerRequest.body.max_tokens <= 1024, 'Groq output is capped to the configured token budget');
   const callsAfterFirst = seen.length;
 
   mockResponseHeaders = {};
-  const blocked = await admin.post('/ai', { messages: [{ role: 'user', content: 'Reply with OK.' }] });
+    const blocked = await admin.post('/ai', aiPayload({ message: 'Reply with OK.' }));
   eq(blocked.status, 429);
   ok(blocked.data.retryAfter > 0, 'response includes a retry delay');
   eq(seen.length, callsAfterFirst, 'the persisted Groq budget blocks the next call');
@@ -364,24 +347,10 @@ await test('the AI agent works through Groq via LangChain', async () => {
   await page.waitForFunction(() => document.querySelector('#am').innerText.includes('All done.'), null, {
     timeout: 20000
   });
-  eq(await page.evaluate(() => LogicLab.parts().length), 6, 'the circuit was built on the canvas');
+    eq(await page.evaluate(() => LogicLab.parts().length), 4, 'expression action builds a wired circuit locally');
   const chats = seen.filter((r) => r.url === '/v1/chat/completions');
-  eq(chats.length, 3, 'three round trips: build, check, answer');
-  eq(
-    [chats[0].body.messages[0].role, chats[0].body.tools[0].function.name, chats[0].body.model],
-    ['system', 'build_circuit', 'mock-model']
-  );
-  const second = chats[1].body.messages;
-  ok(
-    second.some(
-      (m) => m.role === 'assistant' && m.tool_calls && m.tool_calls[0].function.name === 'build_circuit'
-    ),
-    'tool calls are sent back in OpenAI format'
-  );
-  ok(
-    second.some((m) => m.role === 'tool' && m.tool_call_id === 'call_build_circuit'),
-    'tool results are sent back as tool messages'
-  );
+    eq(chats.length, 1, 'one structured action response builds the circuit');
+    eq([chats[0].body.tools[0].function.name, chats[0].body.model], ['apply_expression', 'mock-model']);
   eq(problems, []);
   if (app) await app.env.DB.prepare("DELETE FROM settings WHERE k LIKE 'ai_groq_rate_state:%'").run();
   await ctx.close();
@@ -396,11 +365,11 @@ await test('provider settings reject non-Groq/Gemini providers and endpoints', a
 await test('per-user limits, the AI switch and closed sign-ups are enforced', async () => {
   const bobId = (await bob.get('/me')).data.user.id;
   await admin.patch('/admin/users/' + bobId, { ai_limit: 0 });
-  eq((await bob.post('/ai', { messages: [{ role: 'user', content: 'hi' }] })).status, 429, 'per-user limit');
+  eq((await bob.post('/ai', aiPayload())).status, 429, 'per-user limit');
   await admin.patch('/admin/users/' + bobId, { ai_limit: null });
-  eq((await bob.post('/ai', { messages: [{ role: 'user', content: 'hi' }] })).status, 200);
+  eq((await bob.post('/ai', aiPayload())).status, 200);
   await admin.put('/admin/settings', { aiEnabled: false });
-  eq((await bob.post('/ai', { messages: [{ role: 'user', content: 'hi' }] })).status, 503, 'AI switched off');
+  eq((await bob.post('/ai', aiPayload())).status, 503, 'AI switched off');
   eq((await bob.get('/me')).data.ai, false);
   await admin.put('/admin/settings', { aiEnabled: true, signupsOpen: false });
   eq(

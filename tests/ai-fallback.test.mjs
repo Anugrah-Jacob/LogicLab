@@ -58,21 +58,34 @@ const signup = await nativeFetch(app.url + 'api/auth/signup', {
   })
 });
 const cookie = signup.headers.get('set-cookie').split(';')[0];
-const ask = (mode = 'build', context = '') =>
+const ask = (mode = 'overwrite', projectExplanation = '') =>
   nativeFetch(app.url + 'api/ai', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie },
     body: JSON.stringify({
-      messages: [{ role: 'user', content: 'Continue the circuit task.' }],
-      context,
-      mode
+      project_name: 'AI test project',
+      mode,
+      message: 'Continue the circuit task.',
+      chat_history: [],
+      components: ['IN', 'AND', 'OR', 'LED'],
+      expression: '',
+      project_explanation: projectExplanation
     })
   });
 const askExpression = (expression, extra = {}) =>
   nativeFetch(app.url + 'api/ai', {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie },
-    body: JSON.stringify({ messages: [{ role: 'user', content: expression }], mode: 'expression', ...extra })
+    body: JSON.stringify({
+      project_name: 'AI test project',
+      mode: 'overwrite',
+      message: expression,
+      chat_history: [],
+      components: ['IN', 'AND', 'OR', 'LED'],
+      expression,
+      project_explanation: '',
+      ...extra
+    })
   });
 
 await test('AI falls back from Groq to Gemini and restores recovered Groq', async () => {
@@ -80,10 +93,12 @@ await test('AI falls back from Groq to Gemini and restores recovered Groq', asyn
   eq(invalid.status, 400, 'unsupported AI modes are rejected');
   const first = await ask();
   const fallback = await first.json();
-  eq([first.status, fallback.provider], [200, 'gemini']);
+  eq(first.status, 200);
+  eq(Object.keys(fallback).sort(), ['chat', 'tool']);
+  eq(fallback.tool, null);
   ok(
-    calls[0].body.messages[0].content.includes('Selected mode: build.'),
-    'selected task mode is included in LangChain system context'
+    calls[0].body.messages[0].content.includes('Mode: overwrite'),
+    'selected action mode is included in LangChain system context'
   );
   eq(
     calls.map((call) => call.path),
@@ -106,41 +121,47 @@ await test('AI falls back from Groq to Gemini and restores recovered Groq', asyn
   geminiStatus = 503;
   const recovered = await ask();
   const primary = await recovered.json();
-  eq([recovered.status, primary.provider], [200, 'groq']);
+  eq(recovered.status, 200);
+  eq(Object.keys(primary).sort(), ['chat', 'tool']);
   eq(calls.at(-1).path, '/v1/chat/completions', 'recovered Groq is tried before Gemini');
 
   geminiStatus = 200;
   const largeContext = 'compact circuit netlist '.repeat(4000);
-  const large = await ask('debug', largeContext);
+  const large = await ask('read', largeContext);
   const largeResult = await large.json();
-  eq([large.status, largeResult.provider], [200, 'gemini']);
+  eq(large.status, 200);
   ok(
     calls.at(-1).body.messages[0].content.includes(largeContext),
-    'large canvas context reaches Gemini intact'
+    'full project explanation reaches Gemini intact'
   );
+  eq(calls.at(-1).body.tools, undefined, 'read mode does not expose a modifying tool');
   eq(calls.at(-1).body.max_tokens, 32768, 'Gemini can return large circuit analysis results');
 });
 
-await test('expression mode sends only raw input with the restricted palette tool', async () => {
+await test('structured request returns tool/chat and exposes only expression actions', async () => {
   const before = calls.length;
-  const invalid = await askExpression('A AND B', { context: 'project data' });
-  eq(invalid.status, 400, 'expression mode rejects extra request context');
+  const invalid = await askExpression('A AND B', { extra_context: 'project data' });
+  eq(invalid.status, 400, 'structured mode rejects fields outside the defined schema');
   eq(calls.length, before, 'invalid expression requests do not reach the model');
 
   const response = await askExpression('A+B');
   eq(response.status, 200);
   const request = calls.at(-1).body,
-    system = request.messages.find((message) => message.role === 'system').content,
-    userMessages = request.messages.filter((message) => message.role === 'user');
+    userMessages = request.messages.filter((message) => message.role === 'user'),
+    system = request.messages.find((message) => message.role === 'system').content;
   eq(userMessages.map((message) => message.content), ['A+B']);
-  ok(system.includes('raw Boolean expression'), 'the model receives expression-specific instructions');
-  ok(system.includes('A+B means A OR B'), 'the model knows plus means OR');
-  ok(!system.includes('Current canvas'), 'the model does not receive project context');
+  ok(system.includes('Project name: AI test project'), 'project name is included');
+  ok(system.includes('Mode: overwrite'), 'selected mode is included');
+  ok(system.includes('Requested expression: A+B'), 'expression is included');
+  ok(system.includes('IN'), 'component inventory is included');
+  ok(system.includes('Project explanation:'), 'project explanation is included');
+  ok(system.includes('Available components'), 'the complete component list is included');
+  ok(system.includes('Project explanation'), 'project context is included');
+  ok(system.includes('append mode'), 'the system explains append behavior');
   eq(request.tools.length, 1, 'expression mode exposes only circuit construction');
-  eq(request.tools[0].function.name, 'build_circuit');
-  eq(request.tools[0].function.parameters.properties.parts.items.properties.type.enum, [
-    'IN', 'LED', 'SEG7', 'AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR', 'NOT', 'BUF'
-  ]);
+  eq(request.tools[0].function.name, 'apply_expression');
+  eq(request.tools[0].function.parameters.required, ['expression', 'mode']);
+  eq(request.tools[0].function.parameters.properties.mode.enum, ['overwrite', 'append']);
 });
 
 globalThis.fetch = nativeFetch;

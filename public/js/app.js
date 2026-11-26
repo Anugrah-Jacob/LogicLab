@@ -7132,6 +7132,159 @@
       }
     }
   }
+  function expressionNetlist(expression) {
+    expression = expression.trim();
+    const tokens = [],
+      tokenPattern = /\s*(\|\||&&|[A-Za-z_][A-Za-z0-9_]*|[01]|[!~¬'′+|*·&^()])/y;
+    let offset = 0;
+    while (offset < expression.length) {
+      tokenPattern.lastIndex = offset;
+      const match = tokenPattern.exec(expression);
+      if (!match) throw new Error('Unsupported character near "' + expression.slice(offset, offset + 8) + '".');
+      offset = tokenPattern.lastIndex;
+      const value = match[1],
+        keyword = value.toUpperCase();
+      tokens.push(
+        ({
+          OR: 'OR',
+          NOR: 'NOR',
+          XOR: 'XOR',
+          XNOR: 'XNOR',
+          AND: 'AND',
+          NAND: 'NAND',
+          NOT: 'NOT',
+          '+': 'OR',
+          '|': 'OR',
+          '||': 'OR',
+          '*': 'AND',
+          '&': 'AND',
+          '&&': 'AND',
+          '·': 'AND',
+          '^': 'XOR',
+          '!': 'NOT',
+          '~': 'NOT',
+          '¬': 'NOT',
+          "'": 'PRIME',
+          '′': 'PRIME',
+          '(': 'LP',
+          ')': 'RP'
+        })[keyword] || (value == '(' ? 'LP' : value == ')' ? 'RP' : 'ID')
+      );
+      if (tokens[tokens.length - 1] == 'ID') tokens[tokens.length - 1] = { type: 'ID', value };
+    }
+    let index = 0;
+    const peek = () => tokens[index],
+      take = () => tokens[index++],
+      op = (node, type, right) => ({ type: 'op', op: type, left: node, right });
+    function primary() {
+      const token = take();
+      if (token == 'LP') {
+        const node = parseOr();
+        if (take() != 'RP') throw new Error('Missing closing parenthesis.');
+        return node;
+      }
+      if (token && token.type == 'ID') return { type: 'input', name: token.value };
+      throw new Error('Expected an input name or parenthesized expression.');
+    }
+    function unary() {
+      if (peek() == 'NOT') {
+        take();
+        return { type: 'op', op: 'NOT', value: unary() };
+      }
+      let node = primary();
+      while (peek() == 'PRIME') {
+        take();
+        node = { type: 'op', op: 'NOT', value: node };
+      }
+      return node;
+    }
+    function parseAnd() {
+      let node = unary();
+      while (['AND', 'NAND'].includes(peek())) node = op(node, take(), unary());
+      return node;
+    }
+    function parseXor() {
+      let node = parseAnd();
+      while (['XOR', 'XNOR'].includes(peek())) node = op(node, take(), parseAnd());
+      return node;
+    }
+    function parseOr() {
+      let node = parseXor();
+      while (['OR', 'NOR'].includes(peek())) node = op(node, take(), parseXor());
+      return node;
+    }
+    if (!tokens.length) throw new Error('Enter a Boolean expression.');
+    const tree = parseOr();
+    if (index != tokens.length) throw new Error('Unexpected token in expression.');
+    const parts = [],
+      wires = [],
+      inputs = new Map();
+    let nextId = 0;
+    const output = (node) => {
+      if (node.type == 'input') {
+        if (!inputs.has(node.name)) {
+          const id = 'expression-' + nextId++;
+          inputs.set(node.name, id);
+          parts.push({ id, type: 'IN', name: node.name });
+        }
+        return inputs.get(node.name);
+      }
+      const id = 'expression-' + nextId++,
+        gate = { id, type: node.op, name: node.op + nextId };
+      parts.push(gate);
+      if (node.op == 'NOT') wires.push({ from: output(node.value) + '.0', to: id + '.0' });
+      else {
+        wires.push({ from: output(node.left) + '.0', to: id + '.0' });
+        wires.push({ from: output(node.right) + '.0', to: id + '.1' });
+      }
+      return id;
+    };
+    const result = output(tree),
+      led = 'expression-' + nextId++;
+    parts.push({ id: led, type: 'LED', name: 'Y' });
+    wires.push({ from: result + '.0', to: led + '.0' });
+    return { parts, wires };
+  }
+  function structuredAIRequest(message, expression = '', chatHistory = AI.msgs) {
+    const components = Object.entries(DEF).map(
+      ([type, definition]) => `${type}: inputs [${definition.ins.join(', ')}], outputs [${definition.outs.join(', ')}]`
+    );
+    components.push('PB: momentary switch, output [0]');
+    return {
+      project_name: pname,
+      mode: $('#aimode').value,
+      message,
+      chat_history: chatHistory
+        .filter((entry) => (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string')
+        .slice(-30),
+      components,
+      expression,
+      project_explanation: projectExplanation()
+    };
+  }
+  async function applyStructuredAIResponse(response, mode, node) {
+    if (!response || typeof response.chat !== 'string' || (response.tool !== null && typeof response.tool !== 'object'))
+      throw new Error('The AI response did not match the structured tool/chat format.');
+    let chat = response.chat.trim();
+    if (response.tool) {
+      if (mode === 'read' || response.tool.mode !== mode || !['overwrite', 'append'].includes(response.tool.mode))
+        throw new Error('The AI returned a circuit action that does not match the selected mode.');
+      const approvalNeeded =
+        mode === 'overwrite' && (nodes.length > 0 || wires.length > 0 || notes.length > 0 || groups.length > 0);
+      let approved = true;
+      if (approvalNeeded) {
+        approved = node
+          ? await confirmAIChanges(node, [{ name: 'apply_expression', input: response.tool }])
+          : window.confirm('Replace the current circuit with the circuit generated from this expression?');
+        if (node) aiStatus(node, approved ? 'Applying approved expression…' : 'Keeping the current circuit…');
+      }
+      if (approved) {
+        const result = execTool('apply_expression', response.tool);
+        chat += `${chat ? '\n\n' : ''}Built ${result.parts} parts and ${result.wires} connections from the expression.`;
+      }
+    }
+    return chat || 'Done.';
+  }
   async function buildFromExpression(expression) {
     if (AI.busy) return;
     if (!USER) return authOpen('login', 'Sign in to use LogicLab AI.', () => buildFromExpression(expression));
@@ -7140,35 +7293,16 @@
       render();
       return;
     }
-    if ((nodes.length || wires.length || notes.length || groups.length) && !window.confirm('Replace the current circuit with the circuit built from this expression?')) {
-      expressionStatus = 'Build cancelled. The current circuit was kept.';
-      render();
-      return;
-    }
     AI.busy = 1;
     $('#aisend').disabled = true;
     expressionStatus = 'Building circuit…';
     render();
     try {
-      const response = await api('/ai', {
-          method: 'POST',
-          body: { messages: [{ role: 'user', content: expression }], mode: 'expression' }
-        }),
-        content = Array.isArray(response.content) ? response.content : [],
-        uses = content.filter((block) => block.type === 'tool_use'),
-        reply = content
-          .filter((block) => block.type === 'text')
-          .map((block) => block.text)
-          .join('\n')
-          .trim();
-      if (uses.length !== 1 || uses[0].name !== 'build_circuit')
-        throw new Error(reply || 'The AI did not return a circuit.');
-      const input = uses[0].input || {},
-        allowed = new Set(['IN', 'LED', 'SEG7', 'AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUF']);
-      if (!Array.isArray(input.parts) || input.parts.some((part) => !allowed.has(part.type)))
-        throw new Error('The AI returned a component that is not available in the expression builder.');
-      const result = execTool('build_circuit', { ...input, replace: true });
-      expressionStatus = `Built from “${expression}”: ${result.parts} parts and ${result.wires} connections.`;
+      const request = structuredAIRequest(expression, expression),
+        response = await api('/ai', { method: 'POST', body: request }),
+        chat = await applyStructuredAIResponse(response, request.mode, null);
+      AI.msgs.push({ role: 'user', content: expression }, { role: 'assistant', content: chat });
+      expressionStatus = chat;
     } catch (error) {
       expressionStatus = `Could not build the expression: ${String((error && error.message) || error)}`;
     } finally {
@@ -7212,6 +7346,8 @@
   }
   function aiChangeSummary(uses) {
     const describe = ({ name, input }) => {
+      if (name === 'apply_expression')
+        return `${input.mode === 'append' ? 'Append to' : 'Overwrite'} the circuit with: ${input.expression}`;
       if (name === 'build_circuit') {
         const parts = Array.isArray(input.parts) ? input.parts : [];
         const types = Object.entries(
@@ -7283,7 +7419,7 @@
     aiAdd('u', esc(text));
     AI.msgs.push({ role: 'user', content: text });
     try {
-      await runAgent(0);
+      await runAgent(0, structuredAIRequest(text, '', AI.msgs.slice(0, -1)));
     } finally {
       AI.busy = 0;
       $('#aisend').disabled = false;
@@ -7291,61 +7427,17 @@
   }
   async function runAgent(startStep, retryBody, assistantNode = null) {
     const node = assistantNode || aiAdd('a', 'Thinking…');
-    for (let i = startStep; i < 8; i++) {
-      aiStatus(node, 'Thinking…');
-      const requestBody =
-        i === startStep && retryBody
-          ? retryBody
-          : {
-              messages: trimMsgs(),
-              context: ctxSummary(),
-              templates: WZ.tpl.map((t) => t.k + '=' + t.t).join('; '),
-              mode: $('#aimode').value
-            };
-      let r;
-      try {
-        r = await aiRequest(requestBody, node);
-      } catch (error) {
-        showAIError(error, i, requestBody, node);
-        return;
-      }
-      AI.msgs.push({ role: 'assistant', content: r.content });
-      const txt = r.content
-        .filter((b) => b.type == 'text')
-        .map((b) => b.text)
-        .join('\n')
-        .trim();
-      const uses = r.content.filter((b) => b.type == 'tool_use');
-      if (!uses.length) {
-        node.className = 'bb a';
-        node.innerHTML = mdx(txt || 'Done.');
-        return;
-      }
-      const approvalNeeded = needsAIApproval(uses);
-      let approved = true;
-      if (approvalNeeded) {
-        approved = await confirmAIChanges(node, uses);
-        aiStatus(node, approved ? 'Applying approved changes…' : 'Keeping the current circuit…');
-      } else {
-        aiStatus(node, uses.some((use) => use.name === 'build_circuit') ? 'Building circuit…' : 'Working…');
-      }
-      const res = uses.map((u) => {
-        let out;
-        try {
-          if (!approved && ['build_circuit', 'clear_circuit', 'load_template'].includes(u.name))
-            throw new Error('The user cancelled this proposed circuit change.');
-          out = execTool(u.name, u.input || {});
-        } catch (e) {
-          out = { error: String((e && e.message) || e) };
-        }
-        const o = { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out).slice(0, 7000) };
-        if (out.error) o.is_error = true;
-        return o;
-      });
-      AI.msgs.push({ role: 'user', content: res });
+    aiStatus(node, 'Thinking…');
+    const requestBody = retryBody || structuredAIRequest(AI.msgs.at(-1)?.content || '', '', AI.msgs.slice(0, -1));
+    try {
+      const response = await aiRequest(requestBody, node),
+        chat = await applyStructuredAIResponse(response, requestBody.mode, node);
+      AI.msgs.push({ role: 'assistant', content: chat });
+      node.className = 'bb a';
+      node.innerHTML = mdx(chat);
+    } catch (error) {
+      showAIError(error, startStep, requestBody, node);
     }
-    node.className = 'bb a';
-    node.textContent = 'I reached the maximum number of steps for this request. Please ask me to continue.';
   }
   function ctxSummary() {
     const P = nodes
@@ -7371,6 +7463,26 @@
       '.' +
       (osc ? ' The circuit is currently oscillating.' : '') +
       (run ? ' Simulation is running.' : ' Simulation is paused.')
+    );
+  }
+  function projectExplanation() {
+    const drawings = notes
+        .map((note) =>
+          note.t === 'text'
+            ? `${note.id}:text ${JSON.stringify(note.s)} at (${note.x0},${note.y0})`
+            : `${note.id}:${note.t} on layer ${note.l}`
+        )
+        .join('; '),
+      memberships = groups
+        .map((group) => `${group.name}: parts [${group.ids.join(',')}], drawings [${(group.nids || []).join(',')}]`)
+        .join('; ');
+    return (
+      ctxSummary() +
+      ' Drawings (id:type:content/location): ' +
+      (drawings || 'none') +
+      '. Groups: ' +
+      (memberships || 'none') +
+      '.'
     );
   }
   function pinIdx(n, ref, out) {
@@ -7487,6 +7599,11 @@
    */
   function execTool(name, a) {
     switch (name) {
+      case 'apply_expression': {
+        if (!['overwrite', 'append'].includes(a.mode)) throw new Error('A read-only request cannot change the circuit.');
+        const netlist = expressionNetlist(String(a.expression || ''));
+        return toolBuild({ ...netlist, replace: a.mode === 'overwrite' });
+      }
       case 'build_circuit':
         return toolBuild(a);
       case 'set_input': {

@@ -1,6 +1,6 @@
 // LogicLab service worker: makes the app work offline. API calls are never cached.
 // The cache name is replaced with a content hash by scripts/build.mjs, so each deployment gets a fresh cache.
-const V = 'll-e8c7192e87c4';
+const V = 'll-5326a2d4d328';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
