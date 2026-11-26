@@ -384,6 +384,27 @@ main[data-n='2'] #pcb {
   padding: 3px 8px;
   font-size: 12px;
 }
+#expression-form {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+#expression-form label {
+  font-weight: 600;
+}
+#expression-input {
+  width: 100%;
+  min-height: 84px;
+  padding: 8px;
+  resize: vertical;
+  font-size: 13px;
+}
+#expression-form button {
+  justify-self: start;
+}
+#expression-status {
+  overflow-wrap: anywhere;
+}
 table {
   border-collapse: collapse;
   width: 100%;

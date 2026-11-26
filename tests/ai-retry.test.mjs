@@ -19,6 +19,33 @@ await page.route('**/api/**', async (route) => {
   if (path === '/api/ai') {
     const body = route.request().postDataJSON();
     requests.push(body);
+    if (body.mode === 'expression')
+      return route.fulfill({
+        json: {
+          content: [
+            { type: 'text', text: '(A AND B) OR C' },
+            {
+              type: 'tool_use',
+              id: 'expression-build',
+              name: 'build_circuit',
+              input: {
+                replace: true,
+                parts: [
+                  { id: 'a', type: 'IN', name: 'A' },
+                  { id: 'b', type: 'IN', name: 'B' },
+                  { id: 'or1', type: 'OR', name: 'OR1' },
+                  { id: 'y', type: 'LED', name: 'Y' }
+                ],
+                wires: [
+                  { from: 'a', to: 'or1.0' },
+                  { from: 'b', to: 'or1.1' },
+                  { from: 'or1', to: 'y' }
+                ]
+              }
+            }
+          ]
+        }
+      });
     aiCalls++;
     if (aiCalls === 1)
       return route.fulfill({
@@ -201,6 +228,25 @@ await test('AI chat renders Markdown tables, headings and ordered lists', async 
     !(await page.locator('#am').innerText()).includes('|-------|'),
     'table separator is not shown as raw text'
   );
+});
+
+await test('expression builder sends only the raw expression and builds the returned circuit', async () => {
+  await page.click('#ai #ax');
+  await page.evaluate(() => LogicLab.load(''));
+  await page.click('#side .stabs button[data-t="a"]');
+  await page.click('#tabs button[data-t="build"]');
+  const expression = 'A+B';
+  await page.fill('#expression-input', expression);
+  await page.click('#expression-form button[type="submit"]');
+  await page.waitForFunction(() => document.querySelector('#expression-status').textContent.includes('Built from'));
+
+  const request = requests.at(-1);
+  eq(Object.keys(request).sort(), ['messages', 'mode']);
+  eq(request.mode, 'expression');
+  eq(request.messages, [{ role: 'user', content: expression }]);
+  eq(await page.evaluate(() => LogicLab.parts().length), 4);
+  const rows = await page.evaluate(() => LogicLab.analysis().rows.map((row) => row.o[0]));
+  eq(rows, [0, 1, 1, 1]);
 });
 
 await browser.close();

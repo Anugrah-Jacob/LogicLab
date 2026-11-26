@@ -65,6 +65,7 @@
   DEF.CLK = { ins: [], outs: [''] };
   DEF.LED = { ins: [''], outs: [] };
   DEF.METER = { ins: [''], outs: [] };
+  DEF.SEG7 = { ins: ['A', 'B', 'C', 'D'], outs: [] };
   DEF.SIPO = { ins: ['SI', '>'], outs: ['Q0', 'Q1', 'Q2', 'Q3'], reg: 1 };
   DEF.PISO = { ins: ['D0', 'D1', 'D2', 'D3', 'LD', '>'], outs: ['SO'], reg: 1 };
   const MULTI = new Set(['AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR']),
@@ -85,7 +86,7 @@
       ['IN', 'CLK'],
       ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUF'],
       ['D', 'T', 'JK', 'SIPO', 'PISO'],
-      ['LED', 'METER']
+      ['LED', 'METER', 'SEG7']
     ],
     TIP = {
       IN: 'Switch',
@@ -93,6 +94,7 @@
       CLK: 'Clock',
       LED: 'LED',
       METER: 'Voltmeter',
+      SEG7: '7-segment LED display (BCD inputs A-D)',
       SIPO: '4-bit SIPO shift register',
       PISO: '4-bit PISO shift register'
     };
@@ -275,6 +277,7 @@
         else if (d.ff) o = [n.q, 1 - n.q];
         else if (d.reg) o = t == 'SIPO' ? n.r.slice() : [n.r[3]];
         else if (t == 'LED' || t == 'METER') o = [val(n, 0)];
+        else if (t == 'SEG7') o = [];
         else o = [FN[t](Array.from({ length: nI(n) }, (_, i) => val(n, i)))];
         if (o.length != n.o.length || o.some((v, i) => v !== n.o[i])) ch = 1;
         n.o = o;
@@ -338,6 +341,11 @@
   const val = (n, i) => {
     const w = inMap.get(n.id * 64 + i);
     return w ? idm.get(w.a).o[w.ap] : 0;
+  };
+  const SEG7_DIGITS = ['abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg', 'acdefg', 'abc', 'abcdefg', 'abcdfg'];
+  const seg7Value = (n) => {
+    const value = [0, 1, 2, 3].reduce((result, pin) => (result << 1) | val(n, pin), 0);
+    return value < 10 ? value : null;
   };
   /**
    * Advance the circuit by one simulation tick.
@@ -1345,6 +1353,29 @@
       c.fill();
       c.restore();
       c.stroke();
+    } else if (t == 'SEG7') {
+      const digit = seg7Value(n),
+        segments = [
+          ['a', n.x + 27, n.y + 17, 24, 5],
+          ['b', n.x + 51, n.y + 22, 5, 23],
+          ['c', n.x + 51, n.y + 49, 5, 23],
+          ['d', n.x + 27, n.y + 73, 24, 5],
+          ['e', n.x + 22, n.y + 49, 5, 23],
+          ['f', n.x + 22, n.y + 22, 5, 23],
+          ['g', n.x + 27, n.y + 45, 24, 5]
+        ];
+      c.fillStyle = '#17191b';
+      c.strokeStyle = cs('--bd');
+      c.beginPath();
+      c.roundRect(n.x + 16, n.y + 9, 48, 80, 5);
+      c.fill();
+      c.stroke();
+      segments.forEach(([name, x, y, w, h]) => {
+        c.fillStyle = digit !== null && SEG7_DIGITS[digit].includes(name) ? '#ff5147' : '#542b2b';
+        c.beginPath();
+        c.roundRect(x, y, w, h, 2);
+        c.fill();
+      });
     } else if (t == 'METER') {
       c.beginPath();
       c.roundRect(n.x + 6, n.y, W - 6, h, 8);
@@ -1980,6 +2011,27 @@
           c.arc(x + 54, y + h / 2, 12, 0, 7);
           c.fill();
           c.restore();
+        } else if (n.type == 'SEG7') {
+          const digit = seg7Value(n),
+            segments = [
+              ['a', x + 43, y + 13, 20, 4],
+              ['b', x + 63, y + 17, 4, 15],
+              ['c', x + 63, y + 35, 4, 15],
+              ['d', x + 43, y + 50, 20, 4],
+              ['e', x + 39, y + 35, 4, 15],
+              ['f', x + 39, y + 17, 4, 15],
+              ['g', x + 43, y + 32, 20, 4]
+            ];
+          c.fillStyle = '#17191b';
+          c.beginPath();
+          c.roundRect(x + 33, y + 7, 42, 54, 4);
+          c.fill();
+          segments.forEach(([name, sx, sy, sw, sh]) => {
+            c.fillStyle = digit !== null && SEG7_DIGITS[digit].includes(name) ? '#ff5147' : '#542b2b';
+            c.beginPath();
+            c.roundRect(sx, sy, sw, sh, 1.5);
+            c.fill();
+          });
         } else {
           c.fillStyle = '#e9b52a';
           c.beginPath();
@@ -2855,10 +2907,16 @@
       )
     );
   }
+  let expressionStatus = '';
   function render() {
     const e = $('#an');
     let h = '';
-    if (tab == 'ff') h = ffHTML();
+    if (tab == 'build') {
+      h =
+        '<form id="expression-form"><label for="expression-input">Boolean expression</label><textarea id="expression-input" name="expression" maxlength="500" required placeholder="Example: (A AND B) OR C"></textarea><button type="submit">Build circuit</button></form><p class="mu" id="expression-status" aria-live="polite">' +
+        esc(expressionStatus) +
+        '</p>';
+    } else if (tab == 'ff') h = ffHTML();
     else if (tab == 'st') h = stHTML();
     else {
       const M = model();
@@ -4133,13 +4191,16 @@
       e.preventDefault();
       const r = c.getBoundingClientRect();
       view = V[c === cv ? 0 : 1];
-      if (e.ctrlKey) {
-        zoom(Math.exp(-e.deltaY * 0.002), e.clientX - r.left, e.clientY - r.top, c);
-      } else if (e.deltaMode == 0) {
+      if (e.altKey) {
+        view.x -= e.deltaY || e.deltaX;
+      } else if (e.shiftKey) {
+        view.y -= e.deltaY || e.deltaX;
+      } else if (e.ctrlKey || e.deltaMode != 0) {
+        const delta = e.deltaMode == 1 ? e.deltaY * 16 : e.deltaMode == 2 ? e.deltaY * r.height : e.deltaY;
+        zoom(Math.exp(-delta * 0.001), e.clientX - r.left, e.clientY - r.top, c);
+      } else {
         view.x -= e.deltaX;
         view.y -= e.deltaY;
-      } else {
-        zoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - r.left, e.clientY - r.top, c);
       }
     };
   }
@@ -4282,6 +4343,16 @@
     tab = t;
     [...$('#tabs').children].forEach((b) => b.classList.toggle('on', b === e.target));
     dirty = true;
+    render();
+  };
+  $('#an').onsubmit = (e) => {
+    if (e.target.id != 'expression-form') return;
+    e.preventDefault();
+    const expression = e.target.elements.expression.value.trim();
+    if (!expression) return;
+    expressionStatus = 'Sending expression to LogicLab AI…';
+    render();
+    buildFromExpression(expression);
   };
   const tg = (id, fn) =>
     ($(id).onclick = (e) => {
@@ -4503,7 +4574,7 @@
       );
       if (!moved) break;
     }
-    const isSink = (n) => n.type === 'LED' || n.type === 'METER';
+    const isSink = (n) => n.type === 'LED' || n.type === 'METER' || n.type === 'SEG7';
     const lastColumn = Math.max(0, ...ns.filter((n) => !isSink(n)).map((n) => level.get(n.id))) + 1;
     ns.filter(isSink).forEach((n) => level.set(n.id, lastColumn));
     // 3. order each column by the average height of the parts feeding it, then place it
@@ -6162,7 +6233,7 @@
   function cdUpd() {
     const g = nodes.filter(isG).length,
       i = nodes.filter((n) => n.type == 'IN' || n.type == 'CLK').length,
-      o = nodes.filter((n) => n.type == 'LED' || n.type == 'METER').length,
+      o = nodes.filter((n) => n.type == 'LED' || n.type == 'METER' || n.type == 'SEG7').length,
       f = nodes.filter((n) => DEF[n.type].ff || DEF[n.type].reg).length,
       h =
         '<span>Gates</span><b>' +
@@ -6185,7 +6256,7 @@
   /* palette with search */
   const CATS = [
       ['Logic Gates', ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUF']],
-      ['Inputs & Outputs', ['IN', 'PB', 'CLK', 'LED', 'METER']],
+      ['Inputs & Outputs', ['IN', 'PB', 'CLK', 'LED', 'METER', 'SEG7']],
       ['Flip-Flops', ['D', 'T', 'JK']],
       ['Registers', ['SIPO', 'PISO']]
     ],
@@ -6881,6 +6952,51 @@
         await aiWait(node, 5 + attempt * 10, visible);
         attempt++;
       }
+    }
+  }
+  async function buildFromExpression(expression) {
+    if (AI.busy) return;
+    if (!USER) return authOpen('login', 'Sign in to use LogicLab AI.', () => buildFromExpression(expression));
+    if (!navigator.onLine) {
+      expressionStatus = 'LogicLab AI needs an internet connection.';
+      render();
+      return;
+    }
+    if ((nodes.length || wires.length || notes.length || groups.length) && !window.confirm('Replace the current circuit with the circuit built from this expression?')) {
+      expressionStatus = 'Build cancelled. The current circuit was kept.';
+      render();
+      return;
+    }
+    AI.busy = 1;
+    $('#aisend').disabled = true;
+    expressionStatus = 'Building circuit…';
+    render();
+    try {
+      const response = await api('/ai', {
+          method: 'POST',
+          body: { messages: [{ role: 'user', content: expression }], mode: 'expression' }
+        }),
+        content = Array.isArray(response.content) ? response.content : [],
+        uses = content.filter((block) => block.type === 'tool_use'),
+        reply = content
+          .filter((block) => block.type === 'text')
+          .map((block) => block.text)
+          .join('\n')
+          .trim();
+      if (uses.length !== 1 || uses[0].name !== 'build_circuit')
+        throw new Error(reply || 'The AI did not return a circuit.');
+      const input = uses[0].input || {},
+        allowed = new Set(['IN', 'LED', 'SEG7', 'AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUF']);
+      if (!Array.isArray(input.parts) || input.parts.some((part) => !allowed.has(part.type)))
+        throw new Error('The AI returned a component that is not available in the expression builder.');
+      const result = execTool('build_circuit', { ...input, replace: true });
+      expressionStatus = `Built from “${expression}”: ${result.parts} parts and ${result.wires} connections.`;
+    } catch (error) {
+      expressionStatus = `Could not build the expression: ${String((error && error.message) || error)}`;
+    } finally {
+      AI.busy = 0;
+      $('#aisend').disabled = false;
+      render();
     }
   }
   function showAIError(error, step, requestBody, node) {

@@ -68,6 +68,12 @@ const ask = (mode = 'build', context = '') =>
       mode
     })
   });
+const askExpression = (expression, extra = {}) =>
+  nativeFetch(app.url + 'api/ai', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify({ messages: [{ role: 'user', content: expression }], mode: 'expression', ...extra })
+  });
 
 await test('AI falls back from Groq to Gemini and restores recovered Groq', async () => {
   const invalid = await ask('unknown');
@@ -113,6 +119,28 @@ await test('AI falls back from Groq to Gemini and restores recovered Groq', asyn
     'large canvas context reaches Gemini intact'
   );
   eq(calls.at(-1).body.max_tokens, 32768, 'Gemini can return large circuit analysis results');
+});
+
+await test('expression mode sends only raw input with the restricted palette tool', async () => {
+  const before = calls.length;
+  const invalid = await askExpression('A AND B', { context: 'project data' });
+  eq(invalid.status, 400, 'expression mode rejects extra request context');
+  eq(calls.length, before, 'invalid expression requests do not reach the model');
+
+  const response = await askExpression('A+B');
+  eq(response.status, 200);
+  const request = calls.at(-1).body,
+    system = request.messages.find((message) => message.role === 'system').content,
+    userMessages = request.messages.filter((message) => message.role === 'user');
+  eq(userMessages.map((message) => message.content), ['A+B']);
+  ok(system.includes('raw Boolean expression'), 'the model receives expression-specific instructions');
+  ok(system.includes('A+B means A OR B'), 'the model knows plus means OR');
+  ok(!system.includes('Current canvas'), 'the model does not receive project context');
+  eq(request.tools.length, 1, 'expression mode exposes only circuit construction');
+  eq(request.tools[0].function.name, 'build_circuit');
+  eq(request.tools[0].function.parameters.properties.parts.items.properties.type.enum, [
+    'IN', 'LED', 'SEG7', 'AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR', 'NOT', 'BUF'
+  ]);
 });
 
 globalThis.fetch = nativeFetch;

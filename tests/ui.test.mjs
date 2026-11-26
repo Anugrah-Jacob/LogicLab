@@ -111,6 +111,11 @@ await test('editor uses one workspace without a separate mode selector', async (
   ok(await pg.isVisible('#side .stabs'), 'analysis remains available');
   eq(await pg.locator('#tpal use').getAttribute('href'), '#icon-tool');
   eq(await pg.locator('#snp use').getAttribute('href'), '#icon-grid');
+  await pg.click('#side .stabs button[data-t="a"]');
+  await pg.click('#tabs button[data-t="build"]');
+  ok(await pg.locator('#expression-form').isVisible(), 'expression builder is available in analysis');
+  ok(await pg.locator('#expression-input').isVisible(), 'expression input is visible');
+  await pg.click('#side .stabs button[data-t="c"]');
 });
 await test('freeform dragging button toggles grid snapping on and off', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
@@ -124,6 +129,29 @@ await test('freeform dragging button toggles grid snapping on and off', async ()
   await button.click();
   eq(await button.getAttribute('aria-pressed'), 'false');
   eq(await pg.evaluate(() => LogicLab.exportProject().snap), true);
+});
+await test('palette can build a four-input 7-segment display', async () => {
+  await pg.evaluate(() => {
+    LogicLab.load('');
+    LogicLab.build({
+      parts: [
+        { id: 'a', type: 'IN', name: 'A', value: 0 },
+        { id: 'b', type: 'IN', name: 'B', value: 1 },
+        { id: 'c', type: 'IN', name: 'C', value: 0 },
+        { id: 'd', type: 'IN', name: 'D', value: 1 },
+        { id: 'display', type: 'SEG7', name: 'HEX' }
+      ],
+      wires: [
+        { from: 'a', to: 'display.A' },
+        { from: 'b', to: 'display.B' },
+        { from: 'c', to: 'display.C' },
+        { from: 'd', to: 'display.D' }
+      ]
+    });
+  });
+  await pg.waitForTimeout(80);
+  eq((await parts()).map((part) => part.type).filter((type) => type === 'SEG7'), ['SEG7']);
+  ok(await pg.locator('#pal button[data-k="SEG7"]').count(), 'display is present in the component palette');
 });
 await test('canvas zoom extends well beyond the old 3x ceiling', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
@@ -753,19 +781,30 @@ await test('touchpad scroll pans and pinch zooms while mouse wheel still zooms',
             ...options
           })
         );
+      wheel({ deltaY: 24, deltaMode: 0, altKey: true });
+    const altScrolled = { ...view };
+    wheel({ deltaY: 18, deltaMode: 0, shiftKey: true });
+    const shiftScrolled = { ...view };
     wheel({ deltaX: 12, deltaY: 35, deltaMode: 0 });
     const scrolled = { ...view };
+    const pinchStart = view.s;
     wheel({ deltaY: -30, deltaMode: 0, ctrlKey: true });
     const pinched = { ...view };
     wheel({ deltaY: -1, deltaMode: 1 });
     return {
       touchpadPanned: scrolled.x !== before.x || scrolled.y !== before.y,
+      altScrollHorizontal: altScrolled.x !== before.x && altScrolled.y === before.y,
+      shiftScrollVertical: shiftScrolled.x === altScrolled.x && shiftScrolled.y !== altScrolled.y,
       touchpadPinched: pinched.s > scrolled.s,
+      pinchRatio: pinched.s / pinchStart,
       wheelZoomed: view.s > pinched.s
     };
   });
   ok(result.touchpadPanned, 'pixel-based touchpad scrolling should pan');
+  ok(result.altScrollHorizontal, 'Alt+scroll should move horizontally only');
+  ok(result.shiftScrollVertical, 'Shift+scroll should move vertically only');
   ok(result.touchpadPinched, 'Ctrl+wheel pinch should zoom smoothly');
+  ok(Math.abs(result.pinchRatio - Math.exp(0.03)) < 0.001, 'pinch zoom follows smooth trackpad delta speed');
   ok(result.wheelZoomed, 'a traditional mouse wheel should continue to zoom');
 });
 
