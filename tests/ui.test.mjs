@@ -432,6 +432,59 @@ await test('auto arrange reroutes only internal wires of the selected parts', as
   );
 });
 
+await test('auto arrange groups fan-out wires into readable source rails', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'B', type: 'IN' },
+        { id: 'G1', type: 'AND' },
+        { id: 'G2', type: 'OR' },
+        { id: 'Y1', type: 'LED' },
+        { id: 'Y2', type: 'LED' }
+      ],
+      wires: [
+        { from: 'A', to: 'G1.0' },
+        { from: 'A', to: 'G2.0' },
+        { from: 'B', to: 'G1.1' },
+        { from: 'B', to: 'G2.1' },
+        { from: 'G1', to: 'Y1' },
+        { from: 'G2', to: 'Y2' }
+      ]
+    })
+  );
+  const before = await pg.evaluate(() => LogicLab.exportProject()),
+    box = await pg.locator('#cv').boundingBox(),
+    point = await pg.evaluate(() => {
+      const input = LogicLab.exportProject().nodes.find((node) => node.name === 'A'),
+        view = LogicLabHost.view().v;
+      return { x: view.x + (input.x + 20) * view.s, y: view.y + (input.y + 22) * view.s };
+    });
+  await pg.keyboard.press('Control+a');
+  await pg.mouse.click(box.x + point.x, box.y + point.y, { button: 'right' });
+  await pg.getByRole('button', { name: 'Auto arrange selected wires' }).click();
+  const after = await pg.evaluate(() => LogicLab.exportProject());
+  for (const name of ['A', 'B']) {
+    const source = after.nodes.find((node) => node.name === name),
+      branches = after.wires.filter((wire) => wire.a === source.id);
+    eq(branches.length, 2);
+    const trunk = branches.find((wire) => wire.bends),
+      branch = branches.find((wire) => wire.tap);
+    ok(trunk && branch, name + ' fan-out should have one trunk and one branch');
+    eq(trunk.bends.map((bend) => bend.x), [branch.tap.x, branch.tap.x]);
+  }
+  eq(
+    after.nodes.map(({ x, y }) => [x, y]),
+    before.nodes.map(({ x, y }) => [x, y]),
+    'auto-arrange changes routes without moving parts'
+  );
+  eq(
+    await pg.evaluate(() => LogicLab.analysis().rows.map((row) => row.o)),
+    [[0, 0], [0, 1], [0, 1], [1, 1]],
+    'shared route geometry preserves AND and OR output behavior'
+  );
+});
+
 await test('duplicate preserves gate transforms, color and internal wire routing', async () => {
   await pg.evaluate(() =>
     LogicLab.build({
@@ -574,6 +627,45 @@ await test('Wire tool accepts clicks just outside visible pin markers', async ()
     'nearby clicks should snap to the source and target pins'
   );
 });
+await test('Wire tool branches from an existing wire segment', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'U2', type: 'NOT' }
+      ],
+      wires: [{ from: 'A', to: 'U1.0' }]
+    })
+  );
+  await pg.click('#zi');
+  await pg.click('#zi');
+  await pg.click('#zi');
+  const points = await pg.evaluate(() => {
+    const doc = LogicLab.exportProject(),
+      input = doc.nodes.find((node) => node.name === 'A'),
+      secondGate = doc.nodes.find((node) => node.name === 'U2'),
+      { v, el } = LogicLabHost.view(),
+      rect = el.getBoundingClientRect(),
+      screen = (x, y) => ({ x: rect.x + v.x + x * v.s, y: rect.y + v.y + y * v.s });
+    return {
+      tap: screen(input.x + 98, input.y + 22),
+      worldTap: { x: input.x + 98, y: input.y + 22 },
+      target: screen(secondGate.x, secondGate.y + 20),
+      inputId: input.id,
+      secondGateId: secondGate.id,
+      sourcePin: doc.wires[0].ap
+    };
+  });
+  await pg.click('#tw');
+  await pg.mouse.click(points.tap.x, points.tap.y);
+  await pg.mouse.click(points.target.x, points.target.y);
+  const wires = await pg.evaluate(() => LogicLab.exportProject().wires),
+    branch = wires.find((wire) => wire.tap);
+  ok(branch, 'branch wire stores a tap point on the source segment: ' + JSON.stringify(wires));
+  eq([branch.a, branch.ap, branch.b], [points.inputId, points.sourcePin, points.secondGateId]);
+  ok(Math.abs(branch.tap.x - points.worldTap.x) < 1, 'tap stays at the clicked point on the source wire');
+});
 await test('touch taps outside pin markers still connect without opening a context menu', async () => {
   const m = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -711,6 +803,77 @@ await test('drawing tools support fill, border colour and Shift-constrained shap
   eq([shape.bc, shape.fc], ['#123456', '#abcdef']);
   eq(Math.abs(shape.x1 - shape.x0), Math.abs(shape.y1 - shape.y0), 'Shift constrains a square');
 });
+await test('drawing inspector controls opacity and text position, size, and alignment', async () => {
+  await pg.evaluate(() => {
+    LogicLab.load('');
+    const doc = LogicLab.exportProject();
+    doc.uid = 102;
+    doc.notes = [
+      {
+        id: 100,
+        t: 'rect',
+        l: 1,
+        c: '#123456',
+        bc: '#123456',
+        fc: '#abcdef',
+        fillOn: true,
+        w: 2,
+        x0: 40,
+        y0: 40,
+        x1: 120,
+        y1: 100,
+        rot: 0,
+        alpha: 1
+      },
+      {
+        id: 101,
+        t: 'text',
+        l: 1,
+        c: '#123456',
+        bc: '#123456',
+        fc: '#123456',
+        fillOn: false,
+        w: 2,
+        x0: 160,
+        y0: 80,
+        x1: 160,
+        y1: 80,
+        s: 'Demo label',
+        fs: 20,
+        align: 'left',
+        rot: 0,
+        alpha: 1
+      }
+    ];
+    LogicLab.importProject(doc);
+  });
+  await pg.click('#side .stabs button[data-t="c"]');
+  await pg.click('#tsel');
+  const shapePoint = await pg.evaluate(() => {
+    const { v, el } = LogicLabHost.view(),
+      r = el.getBoundingClientRect();
+    return { x: r.x + v.x + 80 * v.s, y: r.y + v.y + 70 * v.s };
+  });
+  await pg.mouse.click(shapePoint.x, shapePoint.y);
+  await pg.locator('#nalpha').evaluate((input) => {
+    input.value = '0.35';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  eq(await pg.evaluate(() => LogicLab.exportProject().notes.find((note) => note.t === 'rect').alpha), 0.35);
+  const textPoint = await pg.evaluate(() => {
+    const { v, el } = LogicLabHost.view(),
+      r = el.getBoundingClientRect();
+    return { x: r.x + v.x + 165 * v.s, y: r.y + v.y + 85 * v.s };
+  });
+  await pg.mouse.click(textPoint.x, textPoint.y);
+  eq(await pg.locator('#talign').inputValue(), 'left');
+  await pg.locator('#tx0').fill('180');
+  await pg.locator('#ty0').fill('90');
+  await pg.locator('#tsz').fill('32');
+  await pg.locator('#talign').selectOption('right');
+  const text = await pg.evaluate(() => LogicLab.exportProject().notes.find((note) => note.t === 'text'));
+  eq([text.x0, text.y0, text.fs, text.align], [180, 90, 32, 'right']);
+});
 
 await test('middle-button drag pans the canvas', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
@@ -726,7 +889,7 @@ await test('middle-button drag pans the canvas', async () => {
 
 await test('touchscreen drag pans the canvas and two-finger pinch zooms', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
-  await pg.click('#tsel');
+  await pg.click('#tpan');
   const result = await pg.evaluate(() => {
     const canvas = LogicLabHost.view().el,
       view = LogicLabHost.view().v,
@@ -840,6 +1003,26 @@ await test('a drawing can be grouped with parts and the group moves as one', asy
   eq((await groups()).length, 0, 'undo removes the group');
   await pg.keyboard.press('Control+Shift+z');
   eq((await groups()).length, 1, 'redo brings it back');
+  const favoriteBounds = await pg.locator('#cv').boundingBox(),
+    point = await pg.evaluate(() => {
+      const drawing = LogicLab.exportProject().notes.find((note) => note.t === 'rect'),
+        view = LogicLabHost.view().v;
+      return {
+        x: view.x + ((drawing.x0 + drawing.x1) / 2) * view.s,
+        y: view.y + ((drawing.y0 + drawing.y1) / 2) * view.s
+      };
+    });
+  await pg.mouse.click(favoriteBounds.x + point.x, favoriteBounds.y + point.y, { button: 'right' });
+  await pg.getByRole('button', { name: 'Save group to Favorites' }).click();
+  const favorite = pg.locator('#pal .fav-insert').filter({ hasText: 'Group 1' });
+  eq(await favorite.count(), 1, 'saved group appears in Favorites');
+  const originalWireCount = await pg.evaluate(() => LogicLab.exportProject().wires.length);
+  await favorite.click();
+  const duplicated = await pg.evaluate(() => LogicLab.exportProject());
+  eq(duplicated.nodes.length, 12, 'group Favorite copies all parts');
+  eq(duplicated.wires.length, originalWireCount * 2, 'group Favorite copies its internal wiring');
+  eq(duplicated.notes.length, 2, 'group Favorite copies drawings');
+  eq(duplicated.groups.length, 2, 'inserted Favorite restores a separate group');
 });
 
 /* ---- save, export, reopen ---- */
@@ -1083,6 +1266,8 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
   await p.click('#wn');
   await p.waitForTimeout(400);
   ok(await p.isVisible('#bn'), 'bottom nav visible');
+  ok(await p.locator('#tpan').evaluate((button) => button.classList.contains('on')), 'Pan is the default touch tool');
+  eq(await p.locator('#undo').evaluate((button) => getComputedStyle(button).display !== 'none'), true, 'Undo is visible on mobile');
   ok(await p.isVisible('#sim'), 'simulation control remains available on phones');
   for (const width of [320, 375, 390, 448]) {
     await p.setViewportSize({ width, height: width === 320 ? 568 : 844 });
@@ -1143,6 +1328,51 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
   await p.click('#pal button[data-k="AND"]');
   eq(await p.evaluate(() => LogicLab.parts().length), 1);
   eq(errs, []);
+  await m.close();
+});
+
+await test('touch Select tool uses a drag marquee and mobile Undo restores deleted selection', async () => {
+  const m = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const p = await m.newPage();
+  await p.goto(url);
+  await p.waitForFunction(() => window.LogicLab);
+  await p.click('#wn');
+  await p.evaluate(() => LogicLab.load('half-adder'));
+  await p.click('#tsel');
+  const selection = await p.evaluate(() => {
+    const input = LogicLab.exportProject().nodes.find((node) => node.name === 'A'),
+      { v, el } = LogicLabHost.view(),
+      r = el.getBoundingClientRect(),
+      screen = (x, y) => ({ x: r.x + v.x + x * v.s, y: r.y + v.y + y * v.s });
+    return {
+      start: screen(input.x - 24, input.y - 20),
+      end: screen(input.x + 94, input.y + 64),
+      count: LogicLab.parts().length
+    };
+  });
+  await p.evaluate(({ start, end }) => {
+    const canvas = LogicLabHost.view().el;
+    canvas.setPointerCapture = () => {};
+    const dispatch = (type, x, y) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: 55,
+          pointerType: 'touch',
+          button: 0,
+          buttons: type === 'pointerup' ? 0 : 1,
+          clientX: x,
+          clientY: y,
+          bubbles: true
+        })
+      );
+    dispatch('pointerdown', start.x, start.y);
+    dispatch('pointermove', end.x, end.y);
+    dispatch('pointerup', end.x, end.y);
+  }, selection);
+  await p.keyboard.press('Delete');
+  eq(await p.evaluate(() => LogicLab.parts().length), selection.count - 1, 'touch marquee selects the enclosed part');
+  await p.click('#undo');
+  eq(await p.evaluate(() => LogicLab.parts().length), selection.count, 'mobile Undo restores the selected part');
   await m.close();
 });
 

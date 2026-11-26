@@ -1,0 +1,29 @@
+LogicLab AI expression builder demo (test only)
+
+Message entered in the Expression panel:
+A+B
+
+Message sent to the AI as the user content:
+A+B
+
+Expression mode is request metadata. The message content is only the expression above; no project JSON, project context, or chat history is included.
+
+Example AI response (mock demonstration, not a live AI response):
+Expression: A+B
+Interpretation: A OR B
+Circuit parts:
+- Switch A
+- Switch B
+- OR gate
+- LED Y
+Connections:
+- A -> OR input 0
+- B -> OR input 1
+- OR output 0 -> Y
+
+Truth table:
+A B | Y
+0 0 | 0
+0 1 | 1
+1 0 | 1
+1 1 | 1

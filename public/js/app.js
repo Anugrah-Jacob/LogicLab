@@ -230,7 +230,7 @@
     ],
     view = V[0],
     BB = null,
-    tool = 'sel',
+    tool = navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches ? 'pan' : 'sel',
     win = 300,
     tab = 'tt',
     PR = 10,
@@ -332,9 +332,9 @@
   /**
    * Connect output pin `ap` of node `a` to input pin `bp` of node `b` (replaces any wire already on that input).
    */
-  function link(a, ap, b, bp, bends) {
+  function link(a, ap, b, bp, bends, tap) {
     wires = wires.filter((w) => !(w.b == b.id && w.bp == bp));
-    wires.push({ a: a.id, ap, b: b.id, bp, ...(bends && bends.length ? { bends } : {}) });
+    wires.push({ a: a.id, ap, b: b.id, bp, ...(bends && bends.length ? { bends } : {}), ...(tap ? { tap } : {}) });
     reindex();
     dirty = true;
   }
@@ -696,6 +696,7 @@
     }
   }
   function route(w, p, q) {
+    if (w.tap) p = w.tap;
     if (w.bends && w.bends.length) {
       const P = [p];
       w.bends.forEach((v) => {
@@ -799,6 +800,12 @@
       c.stroke();
       c.setLineDash([]);
     }
+    if (w.tap) {
+      c.beginPath();
+      c.arc(w.tap.x, w.tap.y, 4 / view.s, 0, Math.PI * 2);
+      c.fillStyle = pcb ? (on ? '#ffd66b' : '#b9812e') : w.color || cs(on ? '--hi' : '--lo');
+      c.fill();
+    }
     if (w === selW) {
       (R.H || [R.h]).forEach((h) => {
         const r = 7 / view.s;
@@ -895,7 +902,7 @@
     if (pend) {
       const target = pinHit(mouse, 'input');
       const end = target && !target.out ? { x: target.x, y: target.y } : mouse;
-      poly(x, route({ bends: pend.bends }, op(pend.n, pend.i), end).P, pcb ? 3 : 12);
+      poly(x, route({ bends: pend.bends, tap: pend.tap }, op(pend.n, pend.i), end).P, pcb ? 3 : 12);
       x.lineWidth = 2;
       x.strokeStyle = cs('--ac');
       x.setLineDash([6, 6]);
@@ -1115,6 +1122,7 @@
               return { x: point.x, y: point.y };
             });
           if (route.via) wire.via = turn(route.via.x, route.via.y);
+          if (route.tap) wire.tap = turn(route.tap.x, route.tap.y);
           if (route.mx != null) wire.mx = turn(route.mx, route.my ?? cy).x;
           if (route.my != null) wire.my = turn(route.mx ?? cx, route.my).y;
         });
@@ -1172,6 +1180,7 @@
             return { x: q.x, y: q.y };
           });
         if (route.via) wire.via = point(route.via.x, route.via.y);
+        if (route.tap) wire.tap = point(route.tap.x, route.tap.y);
         if (route.mx != null) wire.mx = point(route.mx, h.start.y).x;
         if (route.my != null) wire.my = point(h.start.x, route.my).y;
       });
@@ -3011,8 +3020,17 @@
         (a.t == 'text'
           ? '<label>Text size <input type="number" id="tsz" min="8" max="120" value="' +
             a.fs +
-            '" style="width:64px"></label>'
+            '" style="width:64px"></label><label>Text X <input type="number" id="tx0" step="1" value="' +
+            a.x0 +
+            '"></label><label>Text Y <input type="number" id="ty0" step="1" value="' +
+            a.y0 +
+            '"></label><label>Align <select id="talign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>'
           : '') +
+        '<label>Opacity <input type="range" id="nalpha" min="0" max="1" step="0.05" value="' +
+        (a.alpha ?? 1) +
+        '"><output id="nalpha-value">' +
+        Math.round((a.alpha ?? 1) * 100) +
+        '%</output></label>' +
         '<label>Border <input type="color" id="nbc" value="' +
         (a.bc || a.c || '#e8543a') +
         '"></label>' +
@@ -3031,6 +3049,26 @@
           a.fs = Math.max(8, Math.min(120, +ev.target.value || 8));
           dirty = true;
         };
+      if (a.t == 'text') {
+        $('#tx0').oninput = (ev) => {
+          a.x0 = +ev.target.value || 0;
+          dirty = true;
+        };
+        $('#ty0').oninput = (ev) => {
+          a.y0 = +ev.target.value || 0;
+          dirty = true;
+        };
+        $('#talign').value = a.align || 'left';
+        $('#talign').onchange = (ev) => {
+          a.align = ev.target.value;
+          dirty = true;
+        };
+      }
+      $('#nalpha').oninput = (ev) => {
+        a.alpha = +ev.target.value;
+        $('#nalpha-value').value = Math.round(a.alpha * 100) + '%';
+        dirty = true;
+      };
       $('#nbc').oninput = (ev) => {
         a.bc = a.c = ev.target.value;
         dirty = true;
@@ -3198,14 +3236,38 @@
       return;
     }
     affected.forEach((w) => {
+      delete w.tap;
       delete w.mx;
       delete w.my;
       delete w.via;
       delete w.bends;
       delete w.mode;
     });
+    const sources = new Map();
+    affected.forEach((w) => {
+      const source = idm.get(w.a),
+        target = idm.get(w.b),
+        p = source && op(source, w.ap),
+        q = target && ip(target, w.bp);
+      if (!p || !q || q.x <= p.x + 40) return;
+      const key = w.a + ':' + w.ap;
+      if (!sources.has(key)) sources.set(key, []);
+      sources.get(key).push({ wire: w, p, q });
+    });
+    sources.forEach((branches) => {
+      if (branches.length < 2) return;
+      branches.sort((a, b) => a.q.y - b.q.y || a.q.x - b.q.x);
+      const p = branches[0].p,
+        leftTarget = Math.min(...branches.map((branch) => branch.q.x - 16)),
+        spineX = Math.max(p.x + 12, Math.min(p.x + 36, leftTarget - 24)),
+        top = branches[0].q.y,
+        bottom = branches[branches.length - 1].q.y,
+        trunk = branches[branches.length - 1];
+      trunk.wire.bends = [{ x: spineX, y: top }, { x: spineX, y: bottom }];
+      branches.slice(0, -1).forEach(({ wire, q }) => (wire.tap = { x: spineX, y: q.y }));
+    });
     changed();
-    toast('Auto-routed ' + affected.length + ' selected wire(s). Gates were not moved.', 'success');
+    toast('Arranged ' + affected.length + ' selected wire(s) into readable orthogonal routes.', 'success');
   }
   function autoRouteWire(w) {
     delete w.mx;
@@ -3242,6 +3304,7 @@
         copy.b = b.id;
         if (copy.bends) copy.bends = copy.bends.map((p) => ({ x: p.x + 30, y: p.y + 30 }));
         if (copy.via) copy.via = { x: copy.via.x + 30, y: copy.via.y + 30 };
+        if (copy.tap) copy.tap = { x: copy.tap.x + 30, y: copy.tap.y + 30 };
         if (copy.mx != null) copy.mx += 30;
         if (copy.my != null) copy.my += 30;
         Object.assign(created, copy);
@@ -3282,14 +3345,32 @@
     return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
   }
   function wireAt(p) {
+    return wirePoint(p)?.w;
+  }
+  function wirePoint(p) {
+    let best = null,
+      distance = 7 / Math.max(0.6, view.s);
     for (const w of wires) {
       const a = idm.get(w.a),
         b = idm.get(w.b);
       if (!a || !b) continue;
       const P = route(w, op(a, w.ap), ip(b, w.bp)).P;
-      for (let i = 0; i < P.length - 1; i++)
-        if (segD(p, P[i], P[i + 1]) < 7 / Math.max(0.6, view.s)) return w;
+      for (let i = 0; i < P.length - 1; i++) {
+        const start = P[i],
+          end = P[i + 1],
+          dx = end.x - start.x,
+          dy = end.y - start.y,
+          length = dx * dx + dy * dy,
+          t = length ? Math.max(0, Math.min(1, ((p.x - start.x) * dx + (p.y - start.y) * dy) / length)) : 0,
+          point = { x: start.x + t * dx, y: start.y + t * dy },
+          d = Math.hypot(p.x - point.x, p.y - point.y);
+        if (d < distance) {
+          best = { w, ...point };
+          distance = d;
+        }
+      }
     }
+    return best;
   }
   function nodeAt(p) {
     for (let i = nodes.length - 1; i >= 0; i--) {
@@ -3386,6 +3467,26 @@
     palBuild();
     toast('Saved "' + favorite.name + '" to Favorites.', 'success');
   }
+  function saveGroupFavorite(group) {
+    const ids = new Set(group.ids),
+      nids = new Set(group.nids || []),
+      favorite = {
+        type: 'group',
+        name: group.name || 'Group',
+        nodes: nodes.filter((n) => ids.has(n.id)).map((n) => JSON.parse(JSON.stringify(n))),
+        wires: wires
+          .filter((w) => ids.has(w.a) && ids.has(w.b))
+          .map((w) => JSON.parse(JSON.stringify(w))),
+        notes: notes.filter((note) => nids.has(note.id)).map((note) => JSON.parse(JSON.stringify(note)))
+      };
+    if (!favorite.nodes.length && !favorite.notes.length) return toast('This group is empty.', 'warn');
+    const favorites = getFavorites().filter((saved) => !(saved.type === 'group' && saved.name === favorite.name));
+    favorites.push(favorite);
+    if (!lsS(kk('favorites'), JSON.stringify(favorites)))
+      return toast('Could not save this group in browser storage.', 'warn');
+    palBuild();
+    toast('Saved group "' + favorite.name + '" to Favorites.', 'success');
+  }
   function removeFavorite(name) {
     if (!confirm('Remove "' + name + '" from Favorites?')) return;
     if (!lsS(kk('favorites'), JSON.stringify(getFavorites().filter((f) => f.name != name))))
@@ -3393,6 +3494,7 @@
     palBuild();
   }
   function insertFavorite(favorite) {
+    if (favorite.type === 'group') return insertGroupFavorite(favorite);
     view = V[0];
     const bounds = selectionBounds([
         ...favorite.nodes.map((item) => ({ kind: 'node', item })),
@@ -3421,6 +3523,7 @@
         b: b.id,
         bends: saved.bends && saved.bends.map((p) => ({ x: p.x + dx, y: p.y + dy })),
         via: saved.via && { x: saved.via.x + dx, y: saved.via.y + dy },
+        tap: saved.tap && { x: saved.tap.x + dx, y: saved.tap.y + dy },
         mx: saved.mx == null ? saved.mx : saved.mx + dx,
         my: saved.my == null ? saved.my : saved.my + dy
       });
@@ -3443,6 +3546,58 @@
     groups.push({ id: uid++, name: symbol.s, ids, nids: [symbol.id] });
     sel = new Set(map.values());
     selN = new Set([symbol]);
+    reindex();
+    changed();
+    document.body.classList.remove('sh-pal');
+  }
+  function insertGroupFavorite(favorite) {
+    view = V[0];
+    const savedNodes = favorite.nodes || [],
+      savedNotes = favorite.notes || [],
+      objects = savedNodes.map((item) => ({ kind: 'node', item })).concat(savedNotes.map((item) => ({ kind: 'note', item })));
+    if (!objects.length) return toast('This group favorite is empty.', 'warn');
+    const bounds = selectionBounds(objects),
+      dx = (-view.x + cv.clientWidth / 2) / view.s - (bounds[0] + bounds[2]) / 2,
+      dy = (-view.y + cv.clientHeight / 2) / view.s - (bounds[1] + bounds[3]) / 2,
+      nodeMap = new Map(),
+      noteMap = new Map();
+    savedNodes.forEach((saved) => {
+      const node = add(saved.type, saved.x + dx, saved.y + dy);
+      Object.assign(node, JSON.parse(JSON.stringify(saved)), { id: node.id, x: saved.x + dx, y: saved.y + dy });
+      nodeMap.set(saved.id, node);
+    });
+    (favorite.wires || []).forEach((saved) => {
+      const a = nodeMap.get(saved.a),
+        b = nodeMap.get(saved.b);
+      if (!a || !b) return;
+      link(a, saved.ap, b, saved.bp);
+      const copy = wires.find((wire) => wire.a == a.id && wire.ap == saved.ap && wire.b == b.id && wire.bp == saved.bp);
+      Object.assign(copy, JSON.parse(JSON.stringify(saved)), {
+        a: a.id,
+        b: b.id,
+        bends: saved.bends && saved.bends.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+        via: saved.via && { x: saved.via.x + dx, y: saved.via.y + dy },
+        tap: saved.tap && { x: saved.tap.x + dx, y: saved.tap.y + dy },
+        mx: saved.mx == null ? saved.mx : saved.mx + dx,
+        my: saved.my == null ? saved.my : saved.my + dy
+      });
+    });
+    savedNotes.forEach((saved) => {
+      const note = JSON.parse(JSON.stringify(saved));
+      note.id = uid++;
+      mvNote(note, saved, dx, dy);
+      if (note.members) note.members = note.members.map((id) => nodeMap.get(id)?.id).filter(Boolean);
+      ['inputMap', 'outputMap'].forEach((key) => {
+        if (note[key]) note[key] = note[key].map((port) => ({ ...port, node: nodeMap.get(port.node)?.id })).filter((port) => port.node);
+      });
+      notes.push(note);
+      noteMap.set(saved.id, note);
+    });
+    const ids = [...nodeMap.values()].map((node) => node.id),
+      nids = [...noteMap.values()].map((note) => note.id);
+    groups.push({ id: uid++, name: favorite.name, ids, nids });
+    sel = new Set(nodeMap.values());
+    selN = new Set(noteMap.values());
     reindex();
     changed();
     document.body.classList.remove('sh-pal');
@@ -3556,6 +3711,19 @@
     changed();
     if ($('#symfav').checked) saveFavorite(note);
   }
+  function selectedGroup() {
+    return groups.find(
+      (group) =>
+        group.ids.length === sel.size &&
+        group.nids.length === selN.size &&
+        group.ids.every((id) => sel.has(idm.get(id))) &&
+        group.nids.every((id) => [...selN].some((note) => note.id === id))
+    );
+  }
+  function saveSelectedGroup() {
+    const group = selectedGroup();
+    if (group) saveGroupFavorite(group);
+  }
   function ctx(x, y, p) {
     const n = nodeAt(p),
       a = n ? null : noteAt(p),
@@ -3598,6 +3766,7 @@
                 ['Simplify selected circuit', openSimplifyDialog]
               ]
             : []),
+          ...(selectedGroup() ? [['Save group to Favorites', saveSelectedGroup]] : []),
           ...(Array.from(selN).some((item) => item.t == 'symbol')
             ? [
                 [
@@ -3693,6 +3862,7 @@
           changed();
         }
         menu(x, y, [
+          ...(selectedGroup() ? [['Save group to Favorites', saveSelectedGroup]] : []),
           ...(a.t == 'symbol' ? [['Save symbol to Favorites', () => saveFavorite(a)]] : []),
           ...(a.t == 'text'
             ? [
@@ -3892,11 +4062,11 @@
                     wires: wires
                       .filter(
                         (w) =>
-                          ids.has(w.a) && ids.has(w.b) && (w.bends || w.via || w.mx != null || w.my != null)
+                          ids.has(w.a) && ids.has(w.b) && (w.bends || w.via || w.tap || w.mx != null || w.my != null)
                       )
                       .map((w) => ({
                         id: wires.indexOf(w),
-                        route: JSON.parse(JSON.stringify({ bends: w.bends, via: w.via, mx: w.mx, my: w.my }))
+                        route: JSON.parse(JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my }))
                       }))
                   }
                 : JSON.parse(JSON.stringify(h.item))
@@ -3950,8 +4120,12 @@
         const wirePin = pinHit(p, pend ? 'input' : 'output');
         if (wirePin && wirePin.out && !pend) pend = { n: wirePin.n, i: wirePin.i, bends: [] };
         else if (pend && wirePin) {
-          link(pend.n, pend.i, wirePin.n, wirePin.i, pend.bends);
+          link(pend.n, pend.i, wirePin.n, wirePin.i, pend.bends, pend.tap);
           pend = null;
+        } else if (!pend && !wirePin) {
+          const branch = wirePoint(p),
+            source = branch && idm.get(branch.w.a);
+          if (source) pend = { n: source, i: branch.w.ap, bends: [], tap: { x: branch.x, y: branch.y } };
         }
         dirty = true;
         return;
@@ -3996,9 +4170,9 @@
           L: [...sel].map((q) => [q, q.x, q.y]),
           W: wires
             .filter(
-              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.mx || w.my)
+              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.tap || w.mx || w.my)
             )
-            .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, mx: w.mx, my: w.my })]),
+            .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my })]),
           N: [...selN].map((a) => [a, JSON.stringify(a)]),
           px: p.x,
           py: p.y,
@@ -4026,9 +4200,9 @@
           L: [...sel].map((q) => [q, q.x, q.y]),
           W: wires
             .filter(
-              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.mx || w.my)
+              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.tap || w.mx || w.my)
             )
-            .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, mx: w.mx, my: w.my })]),
+            .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my })]),
           N: [...selN].map((a) => [a, JSON.stringify(a)]),
           px: p.x,
           py: p.y,
@@ -4047,7 +4221,7 @@
         hd.s0 = p;
         return;
       }
-      if (tool == 'pan' || e.button == 1 || e.pointerType == 'touch') {
+      if (tool == 'pan' || e.button == 1) {
         pan = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
       } else {
         if (!add_) {
@@ -4118,6 +4292,7 @@
             const r = JSON.parse(o);
             if (r.bends) w.bends = r.bends.map((v) => ({ x: v.x + dx, y: v.y + dy }));
             if (r.via) w.via = { x: r.via.x + dx, y: r.via.y + dy };
+            if (r.tap) w.tap = { x: r.tap.x + dx, y: r.tap.y + dy };
             if (r.mx != null) w.mx = r.mx + dx;
             if (r.my != null) w.my = r.my + dy;
           });
@@ -5265,8 +5440,9 @@
     }
     if (a.t == 'text') {
       const w = a.s.length * a.fs * 0.6,
+        x = (a.align || 'left') == 'center' ? a.x0 - w / 2 : a.align == 'right' ? a.x0 - w : a.x0,
         h = a.fs;
-      return [a.x0, a.y0, a.x0 + w, a.y0 + h];
+      return [x, a.y0, x + w, a.y0 + h];
     }
     return [Math.min(a.x0, a.x1), Math.min(a.y0, a.y1), Math.max(a.x0, a.x1), Math.max(a.y0, a.y1)];
   }
@@ -5406,6 +5582,7 @@
           cx = (raw[0] + raw[2]) / 2,
           cy = (raw[1] + raw[3]) / 2;
         x.save();
+        x.globalAlpha = Math.max(0, Math.min(1, a.alpha ?? 1));
         x.translate(cx, cy);
         x.rotate(((a.rot || 0) * Math.PI) / 180);
         x.translate(-cx, -cy);
@@ -5421,7 +5598,7 @@
           x.stroke();
         } else if (a.t == 'text') {
           x.font = '600 ' + a.fs + 'px system-ui,sans-serif';
-          x.textAlign = 'left';
+          x.textAlign = a.align || 'left';
           x.textBaseline = 'top';
           x.fillText(a.s, a.x0, a.y0);
         } else if (a.t == 'symbol') {
@@ -6040,6 +6217,7 @@
     c.addEventListener('pointerdown', (e) => curUpd(c, e));
     curSet(c, 'arrow');
   });
+  setTool(tool);
 
   /* ======== v3: cloud shell (accounts, offline sync, AI agent, new UI) ======== */
   let USER = null,
