@@ -334,7 +334,14 @@
    */
   function link(a, ap, b, bp, bends, tap) {
     wires = wires.filter((w) => !(w.b == b.id && w.bp == bp));
-    wires.push({ a: a.id, ap, b: b.id, bp, ...(bends && bends.length ? { bends } : {}), ...(tap ? { tap } : {}) });
+    wires.push({
+      a: a.id,
+      ap,
+      b: b.id,
+      bp,
+      ...(bends && bends.length ? { bends } : {}),
+      ...(tap ? { tap } : {})
+    });
     reindex();
     dirty = true;
   }
@@ -342,7 +349,18 @@
     const w = inMap.get(n.id * 64 + i);
     return w ? idm.get(w.a).o[w.ap] : 0;
   };
-  const SEG7_DIGITS = ['abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg', 'acdefg', 'abc', 'abcdefg', 'abcdfg'];
+  const SEG7_DIGITS = [
+    'abcdef',
+    'bc',
+    'abdeg',
+    'abcdg',
+    'bcfg',
+    'acdfg',
+    'acdefg',
+    'abc',
+    'abcdefg',
+    'abcdfg'
+  ];
   const seg7Value = (n) => {
     const value = [0, 1, 2, 3].reduce((result, pin) => (result << 1) | val(n, pin), 0);
     return value < 10 ? value : null;
@@ -3263,7 +3281,10 @@
         top = branches[0].q.y,
         bottom = branches[branches.length - 1].q.y,
         trunk = branches[branches.length - 1];
-      trunk.wire.bends = [{ x: spineX, y: top }, { x: spineX, y: bottom }];
+      trunk.wire.bends = [
+        { x: spineX, y: top },
+        { x: spineX, y: bottom }
+      ];
       branches.slice(0, -1).forEach(({ wire, q }) => (wire.tap = { x: spineX, y: q.y }));
     });
     changed();
@@ -3330,6 +3351,129 @@
     sel = new Set(map.values());
     selN = new Set(nm.values());
     changed();
+  }
+  const clipboardKey = 'logiclab:clipboard:v1';
+  function copySelection() {
+    const nodeIds = new Set([...sel].map((n) => n.id)),
+      selectedNotes = [...selN];
+    selectedNotes.forEach((note) => (note.members || []).forEach((id) => nodeIds.add(id)));
+    if (selW && !nodeIds.size && !selectedNotes.length) {
+      nodeIds.add(selW.a);
+      nodeIds.add(selW.b);
+    }
+    if (!nodeIds.size && !selectedNotes.length) {
+      toast('Select parts or drawings to copy.', 'info');
+      return;
+    }
+    const selectedWires =
+        selW && !sel.size && !selectedNotes.length
+          ? [selW]
+          : wires.filter((wire) => nodeIds.has(wire.a) && nodeIds.has(wire.b)),
+      selectedGroups = groups.filter(
+        (group) =>
+          group.ids.length + group.nids.length > 0 &&
+          group.ids.every((id) => nodeIds.has(id)) &&
+          (group.nids || []).every((id) => selectedNotes.some((note) => note.id == id))
+      ),
+      data = {
+        app: 'LogicLabClipboard',
+        ver: 1,
+        nodes: nodes.filter((node) => nodeIds.has(node.id)).map((node) => JSON.parse(JSON.stringify(node))),
+        wires: JSON.parse(JSON.stringify(selectedWires)),
+        notes: JSON.parse(JSON.stringify(selectedNotes)),
+        groups: JSON.parse(JSON.stringify(selectedGroups))
+      };
+    try {
+      localStorage.setItem(clipboardKey, JSON.stringify(data));
+      toast('Copied selection. Paste it into any LogicLab project on this browser.', 'success');
+    } catch (e) {
+      toast('Could not copy the selection to browser storage.', 'error');
+    }
+  }
+  function pasteSelection() {
+    let data;
+    try {
+      data = JSON.parse(localStorage.getItem(clipboardKey) || 'null');
+    } catch (e) {
+      toast('The copied selection could not be read from browser storage.', 'error');
+      return;
+    }
+    if (
+      !data ||
+      data.app !== 'LogicLabClipboard' ||
+      data.ver !== 1 ||
+      !Array.isArray(data.nodes) ||
+      !Array.isArray(data.wires) ||
+      !Array.isArray(data.notes) ||
+      !Array.isArray(data.groups)
+    ) {
+      toast('Copy some parts or drawings before pasting.', 'info');
+      return;
+    }
+    const allItems = data.nodes
+        .map((item) => ({ kind: 'node', item }))
+        .concat(data.notes.map((item) => ({ kind: 'note', item }))),
+      bounds = selectionBounds(allItems);
+    if (!bounds) return;
+    const dx = gs((-V[0].x + cv.clientWidth / 2) / V[0].s - (bounds[0] + bounds[2]) / 2),
+      dy = gs((-V[0].y + cv.clientHeight / 2) / V[0].s - (bounds[1] + bounds[3]) / 2),
+      nodeMap = new Map(),
+      noteMap = new Map();
+    data.nodes.forEach((saved) => {
+      if (!saved || typeof saved.type !== 'string') return;
+      const node = add(saved.type, saved.x + dx, saved.y + dy);
+      Object.assign(node, JSON.parse(JSON.stringify(saved)), {
+        id: node.id,
+        x: saved.x + dx,
+        y: saved.y + dy
+      });
+      nodeMap.set(saved.id, node);
+    });
+    data.wires.forEach((saved) => {
+      const a = nodeMap.get(saved.a),
+        b = nodeMap.get(saved.b);
+      if (!a || !b) return;
+      link(a, saved.ap, b, saved.bp);
+      const created = wires.find(
+        (wire) => wire.a == a.id && wire.ap == saved.ap && wire.b == b.id && wire.bp == saved.bp
+      );
+      Object.assign(created, JSON.parse(JSON.stringify(saved)), {
+        a: a.id,
+        b: b.id,
+        bends: saved.bends && saved.bends.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+        via: saved.via && { x: saved.via.x + dx, y: saved.via.y + dy },
+        tap: saved.tap && { x: saved.tap.x + dx, y: saved.tap.y + dy },
+        mx: saved.mx == null ? saved.mx : saved.mx + dx,
+        my: saved.my == null ? saved.my : saved.my + dy
+      });
+    });
+    data.notes.forEach((saved) => {
+      if (!saved || typeof saved !== 'object') return;
+      const note = JSON.parse(JSON.stringify(saved));
+      note.id = uid++;
+      mvNote(note, saved, dx, dy);
+      note.l = actL;
+      if (note.members) note.members = note.members.map((id) => nodeMap.get(id)?.id).filter(Boolean);
+      ['inputMap', 'outputMap'].forEach((key) => {
+        if (note[key])
+          note[key] = note[key]
+            .map((port) => ({ ...port, node: nodeMap.get(port.node)?.id }))
+            .filter((port) => port.node);
+      });
+      notes.push(note);
+      noteMap.set(saved.id, note);
+    });
+    data.groups.forEach((saved) => {
+      const ids = saved.ids.map((id) => nodeMap.get(id)?.id).filter(Boolean),
+        nids = (saved.nids || []).map((id) => noteMap.get(id)?.id).filter(Boolean);
+      if (ids.length + nids.length) groups.push({ id: uid++, name: saved.name, ids, nids });
+    });
+    sel = new Set(nodeMap.values());
+    selN = new Set(noteMap.values());
+    selW = null;
+    reindex();
+    changed();
+    toast('Pasted selection.', 'success');
   }
   function selAll() {
     sel = new Set(nodes);
@@ -3474,13 +3618,13 @@
         type: 'group',
         name: group.name || 'Group',
         nodes: nodes.filter((n) => ids.has(n.id)).map((n) => JSON.parse(JSON.stringify(n))),
-        wires: wires
-          .filter((w) => ids.has(w.a) && ids.has(w.b))
-          .map((w) => JSON.parse(JSON.stringify(w))),
+        wires: wires.filter((w) => ids.has(w.a) && ids.has(w.b)).map((w) => JSON.parse(JSON.stringify(w))),
         notes: notes.filter((note) => nids.has(note.id)).map((note) => JSON.parse(JSON.stringify(note)))
       };
     if (!favorite.nodes.length && !favorite.notes.length) return toast('This group is empty.', 'warn');
-    const favorites = getFavorites().filter((saved) => !(saved.type === 'group' && saved.name === favorite.name));
+    const favorites = getFavorites().filter(
+      (saved) => !(saved.type === 'group' && saved.name === favorite.name)
+    );
     favorites.push(favorite);
     if (!lsS(kk('favorites'), JSON.stringify(favorites)))
       return toast('Could not save this group in browser storage.', 'warn');
@@ -3554,7 +3698,9 @@
     view = V[0];
     const savedNodes = favorite.nodes || [],
       savedNotes = favorite.notes || [],
-      objects = savedNodes.map((item) => ({ kind: 'node', item })).concat(savedNotes.map((item) => ({ kind: 'note', item })));
+      objects = savedNodes
+        .map((item) => ({ kind: 'node', item }))
+        .concat(savedNotes.map((item) => ({ kind: 'note', item })));
     if (!objects.length) return toast('This group favorite is empty.', 'warn');
     const bounds = selectionBounds(objects),
       dx = (-view.x + cv.clientWidth / 2) / view.s - (bounds[0] + bounds[2]) / 2,
@@ -3563,7 +3709,11 @@
       noteMap = new Map();
     savedNodes.forEach((saved) => {
       const node = add(saved.type, saved.x + dx, saved.y + dy);
-      Object.assign(node, JSON.parse(JSON.stringify(saved)), { id: node.id, x: saved.x + dx, y: saved.y + dy });
+      Object.assign(node, JSON.parse(JSON.stringify(saved)), {
+        id: node.id,
+        x: saved.x + dx,
+        y: saved.y + dy
+      });
       nodeMap.set(saved.id, node);
     });
     (favorite.wires || []).forEach((saved) => {
@@ -3571,7 +3721,9 @@
         b = nodeMap.get(saved.b);
       if (!a || !b) return;
       link(a, saved.ap, b, saved.bp);
-      const copy = wires.find((wire) => wire.a == a.id && wire.ap == saved.ap && wire.b == b.id && wire.bp == saved.bp);
+      const copy = wires.find(
+        (wire) => wire.a == a.id && wire.ap == saved.ap && wire.b == b.id && wire.bp == saved.bp
+      );
       Object.assign(copy, JSON.parse(JSON.stringify(saved)), {
         a: a.id,
         b: b.id,
@@ -3588,7 +3740,10 @@
       mvNote(note, saved, dx, dy);
       if (note.members) note.members = note.members.map((id) => nodeMap.get(id)?.id).filter(Boolean);
       ['inputMap', 'outputMap'].forEach((key) => {
-        if (note[key]) note[key] = note[key].map((port) => ({ ...port, node: nodeMap.get(port.node)?.id })).filter((port) => port.node);
+        if (note[key])
+          note[key] = note[key]
+            .map((port) => ({ ...port, node: nodeMap.get(port.node)?.id }))
+            .filter((port) => port.node);
       });
       notes.push(note);
       noteMap.set(saved.id, note);
@@ -3738,6 +3893,8 @@
       }
       const o = one(),
         it = [
+          ['Copy', copySelection],
+          ['Paste', pasteSelection],
           ['Duplicate', dup],
           [
             'Rotate 90°',
@@ -3823,6 +3980,8 @@
       sel = new Set();
       changed();
       menu(x, y, [
+        ['Copy', copySelection],
+        ['Paste', pasteSelection],
         ['Delete wire', delSel],
         ['Auto-route wire', () => autoRouteWire(w)],
         [
@@ -3864,6 +4023,8 @@
         menu(x, y, [
           ...(selectedGroup() ? [['Save group to Favorites', saveSelectedGroup]] : []),
           ...(a.t == 'symbol' ? [['Save symbol to Favorites', () => saveFavorite(a)]] : []),
+          ['Copy', copySelection],
+          ['Paste', pasteSelection],
           ...(a.t == 'text'
             ? [
                 [
@@ -3897,6 +4058,7 @@
       } else
         menu(x, y, [
           ['Select all', selAll],
+          ['Paste', pasteSelection],
           ['Fit to screen', fitView]
         ]);
     }
@@ -4062,11 +4224,15 @@
                     wires: wires
                       .filter(
                         (w) =>
-                          ids.has(w.a) && ids.has(w.b) && (w.bends || w.via || w.tap || w.mx != null || w.my != null)
+                          ids.has(w.a) &&
+                          ids.has(w.b) &&
+                          (w.bends || w.via || w.tap || w.mx != null || w.my != null)
                       )
                       .map((w) => ({
                         id: wires.indexOf(w),
-                        route: JSON.parse(JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my }))
+                        route: JSON.parse(
+                          JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my })
+                        )
                       }))
                   }
                 : JSON.parse(JSON.stringify(h.item))
@@ -4170,7 +4336,8 @@
           L: [...sel].map((q) => [q, q.x, q.y]),
           W: wires
             .filter(
-              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.tap || w.mx || w.my)
+              (w) =>
+                sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.tap || w.mx || w.my)
             )
             .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my })]),
           N: [...selN].map((a) => [a, JSON.stringify(a)]),
@@ -4200,7 +4367,8 @@
           L: [...sel].map((q) => [q, q.x, q.y]),
           W: wires
             .filter(
-              (w) => sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.tap || w.mx || w.my)
+              (w) =>
+                sel.has(idm.get(w.a)) && sel.has(idm.get(w.b)) && (w.bends || w.via || w.tap || w.mx || w.my)
             )
             .map((w) => [w, JSON.stringify({ bends: w.bends, via: w.via, tap: w.tap, mx: w.mx, my: w.my })]),
           N: [...selN].map((a) => [a, JSON.stringify(a)]),
@@ -4389,13 +4557,19 @@
     true
   );
   onkeydown = (e) => {
-    if (document.activeElement.tagName == 'INPUT' || document.activeElement.tagName == 'TEXTAREA') return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     if (RO) return;
     const k = e.key.toLowerCase(),
       m = e.ctrlKey || e.metaKey;
     if (m && k == 'z') {
       e.preventDefault();
       e.shiftKey ? redo() : undo();
+    } else if (m && k == 'c') {
+      e.preventDefault();
+      copySelection();
+    } else if (m && k == 'v') {
+      e.preventDefault();
+      pasteSelection();
     } else if (m && k == 'y') {
       e.preventDefault();
       redo();
@@ -7173,12 +7347,13 @@
     while (offset < expression.length) {
       tokenPattern.lastIndex = offset;
       const match = tokenPattern.exec(expression);
-      if (!match) throw new Error('Unsupported character near "' + expression.slice(offset, offset + 8) + '".');
+      if (!match)
+        throw new Error('Unsupported character near "' + expression.slice(offset, offset + 8) + '".');
       offset = tokenPattern.lastIndex;
       const value = match[1],
         keyword = value.toUpperCase();
       tokens.push(
-        ({
+        {
           OR: 'OR',
           NOR: 'NOR',
           XOR: 'XOR',
@@ -7201,7 +7376,7 @@
           '′': 'PRIME',
           '(': 'LP',
           ')': 'RP'
-        })[keyword] || (value == '(' ? 'LP' : value == ')' ? 'RP' : 'ID')
+        }[keyword] || (value == '(' ? 'LP' : value == ')' ? 'RP' : 'ID')
       );
       if (tokens[tokens.length - 1] == 'ID') tokens[tokens.length - 1] = { type: 'ID', value };
     }
@@ -7280,7 +7455,8 @@
   }
   function structuredAIRequest(message, expression = '', chatHistory = AI.msgs) {
     const components = Object.entries(DEF).map(
-      ([type, definition]) => `${type}: inputs [${definition.ins.join(', ')}], outputs [${definition.outs.join(', ')}]`
+      ([type, definition]) =>
+        `${type}: inputs [${definition.ins.join(', ')}], outputs [${definition.outs.join(', ')}]`
     );
     components.push('PB: momentary switch, output [0]');
     return {
@@ -7288,7 +7464,10 @@
       mode: $('#aimode').value,
       message,
       chat_history: chatHistory
-        .filter((entry) => (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string')
+        .filter(
+          (entry) =>
+            (entry.role === 'user' || entry.role === 'assistant') && typeof entry.content === 'string'
+        )
         .slice(-30),
       components,
       expression,
@@ -7296,14 +7475,23 @@
     };
   }
   async function applyStructuredAIResponse(response, mode, node) {
-    if (!response || typeof response.chat !== 'string' || (response.tool !== null && typeof response.tool !== 'object'))
+    if (
+      !response ||
+      typeof response.chat !== 'string' ||
+      (response.tool !== null && typeof response.tool !== 'object')
+    )
       throw new Error('The AI response did not match the structured tool/chat format.');
     let chat = response.chat.trim();
     if (response.tool) {
-      if (mode === 'read' || response.tool.mode !== mode || !['overwrite', 'append'].includes(response.tool.mode))
+      if (
+        mode === 'read' ||
+        response.tool.mode !== mode ||
+        !['overwrite', 'append'].includes(response.tool.mode)
+      )
         throw new Error('The AI returned a circuit action that does not match the selected mode.');
       const approvalNeeded =
-        mode === 'overwrite' && (nodes.length > 0 || wires.length > 0 || notes.length > 0 || groups.length > 0);
+        mode === 'overwrite' &&
+        (nodes.length > 0 || wires.length > 0 || notes.length > 0 || groups.length > 0);
       let approved = true;
       if (approvalNeeded) {
         approved = node
@@ -7461,7 +7649,8 @@
   async function runAgent(startStep, retryBody, assistantNode = null) {
     const node = assistantNode || aiAdd('a', 'Thinking…');
     aiStatus(node, 'Thinking…');
-    const requestBody = retryBody || structuredAIRequest(AI.msgs.at(-1)?.content || '', '', AI.msgs.slice(0, -1));
+    const requestBody =
+      retryBody || structuredAIRequest(AI.msgs.at(-1)?.content || '', '', AI.msgs.slice(0, -1));
     try {
       const response = await aiRequest(requestBody, node),
         chat = await applyStructuredAIResponse(response, requestBody.mode, node);
@@ -7507,15 +7696,38 @@
         )
         .join('; '),
       memberships = groups
-        .map((group) => `${group.name}: parts [${group.ids.join(',')}], drawings [${(group.nids || []).join(',')}]`)
-        .join('; ');
+        .map(
+          (group) =>
+            `${group.name}: parts [${group.ids.join(',')}], drawings [${(group.nids || []).join(',')}]`
+        )
+        .join('; '),
+      oldSelection = sel,
+      oldNoteSelection = selN;
+    let truthTable;
+    sel = new Set();
+    selN = new Set();
+    try {
+      const analysis = model();
+      truthTable = analysis.err
+        ? 'Truth-table analysis: ' + analysis.err
+        : 'Truth table, input order [' +
+          analysis.I.join(',') +
+          '], output order [' +
+          analysis.O.join(',') +
+          ']: ' +
+          analysis.rows.map((row) => row.b.join('') + ' -> ' + row.o.join('')).join('; ');
+    } finally {
+      sel = oldSelection;
+      selN = oldNoteSelection;
+    }
     return (
       ctxSummary() +
       ' Drawings (id:type:content/location): ' +
       (drawings || 'none') +
       '. Groups: ' +
       (memberships || 'none') +
-      '.'
+      '. ' +
+      truthTable
     );
   }
   function pinIdx(n, ref, out) {
@@ -7588,7 +7800,7 @@
       link(A, ap, B, bp);
       ok++;
     });
-    aiLayout([...map.values()]);
+    aiLayout(nodes);
     changed();
     requestAnimationFrame(() => {
       fitAll();
@@ -7633,7 +7845,8 @@
   function execTool(name, a) {
     switch (name) {
       case 'apply_expression': {
-        if (!['overwrite', 'append'].includes(a.mode)) throw new Error('A read-only request cannot change the circuit.');
+        if (!['overwrite', 'append'].includes(a.mode))
+          throw new Error('A read-only request cannot change the circuit.');
         const netlist = expressionNetlist(String(a.expression || ''));
         return toolBuild({ ...netlist, replace: a.mode === 'overwrite' });
       }

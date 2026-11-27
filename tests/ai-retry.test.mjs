@@ -124,6 +124,23 @@ await test('AI appends an expression using project explanation and components', 
   eq(requests.at(-1).mode, 'append');
   ok(requests.at(-1).project_explanation.includes(':IN:"A"'), 'project explanation includes current inputs');
   ok(requests.at(-1).components.some((component) => component.startsWith('AND:')), 'component inventory includes logic gates');
+  ok(
+    requests.at(-1).project_explanation.includes('Truth table, input order'),
+    'the AI receives the computed truth table when the input count permits it'
+  );
+  const collisions = await page.evaluate(() => {
+    const nodes = LogicLab.exportProject().nodes,
+      height = (node) => (node.type === 'IN' || node.type === 'CLK' || node.type === 'LED' ? 44 : 48),
+      overlaps = [];
+    nodes.forEach((a, i) =>
+      nodes.slice(i + 1).forEach((b) => {
+        if (a.x < b.x + 76 && a.x + 76 > b.x && a.y < b.y + height(b) && a.y + height(a) > b.y)
+          overlaps.push([a.name, b.name]);
+      })
+    );
+    return overlaps;
+  });
+  eq(collisions, [], 'appended components should not occupy overlapping canvas positions');
   ok((await page.locator('#am').innerText()).includes('The expression circuit is ready.'));
   await page.waitForFunction(() => !document.querySelector('#aisend').disabled);
 });

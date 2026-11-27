@@ -150,8 +150,41 @@ await test('palette can build a four-input 7-segment display', async () => {
     });
   });
   await pg.waitForTimeout(80);
-  eq((await parts()).map((part) => part.type).filter((type) => type === 'SEG7'), ['SEG7']);
+  eq(
+    (await parts()).map((part) => part.type).filter((type) => type === 'SEG7'),
+    ['SEG7']
+  );
   ok(await pg.locator('#pal button[data-k="SEG7"]').count(), 'display is present in the component palette');
+});
+await test('copy and paste moves selected circuits between projects', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'Y', type: 'LED' }
+      ],
+      wires: [
+        { from: 'A.0', to: 'U1.0' },
+        { from: 'U1.0', to: 'Y.0' }
+      ]
+    })
+  );
+  await pg.keyboard.press('Control+a');
+  await pg.keyboard.press('Control+c');
+  await pg.click('#mo');
+  await pg.click('#nw');
+  eq((await parts()).length, 0, 'new project starts blank');
+  await pg.keyboard.press('Control+v');
+  const pasted = await pg.evaluate(() => LogicLab.exportProject());
+  eq(pasted.nodes.length, 3, 'all copied parts should paste');
+  eq(pasted.wires.length, 2, 'internal wires should paste');
+  eq(new Set(pasted.nodes.map((node) => node.id)).size, 3, 'pasted part IDs should be unique');
+  await pg.evaluate(() => {
+    LogicLab.setInput('A', 1);
+    LogicLab.step(2);
+  });
+  eq(await pg.evaluate(() => LogicLab.outputs().Y), 0, 'remapped wires should still drive the output');
 });
 await test('canvas zoom extends well beyond the old 3x ceiling', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
@@ -471,7 +504,10 @@ await test('auto arrange groups fan-out wires into readable source rails', async
     const trunk = branches.find((wire) => wire.bends),
       branch = branches.find((wire) => wire.tap);
     ok(trunk && branch, name + ' fan-out should have one trunk and one branch');
-    eq(trunk.bends.map((bend) => bend.x), [branch.tap.x, branch.tap.x]);
+    eq(
+      trunk.bends.map((bend) => bend.x),
+      [branch.tap.x, branch.tap.x]
+    );
   }
   eq(
     after.nodes.map(({ x, y }) => [x, y]),
@@ -480,7 +516,12 @@ await test('auto arrange groups fan-out wires into readable source rails', async
   );
   eq(
     await pg.evaluate(() => LogicLab.analysis().rows.map((row) => row.o)),
-    [[0, 0], [0, 1], [0, 1], [1, 1]],
+    [
+      [0, 0],
+      [0, 1],
+      [0, 1],
+      [1, 1]
+    ],
     'shared route geometry preserves AND and OR output behavior'
   );
 });
@@ -944,7 +985,7 @@ await test('touchpad scroll pans and pinch zooms while mouse wheel still zooms',
             ...options
           })
         );
-      wheel({ deltaY: 24, deltaMode: 0, altKey: true });
+    wheel({ deltaY: 24, deltaMode: 0, altKey: true });
     const altScrolled = { ...view };
     wheel({ deltaY: 18, deltaMode: 0, shiftKey: true });
     const shiftScrolled = { ...view };
@@ -1266,8 +1307,15 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
   await p.click('#wn');
   await p.waitForTimeout(400);
   ok(await p.isVisible('#bn'), 'bottom nav visible');
-  ok(await p.locator('#tpan').evaluate((button) => button.classList.contains('on')), 'Pan is the default touch tool');
-  eq(await p.locator('#undo').evaluate((button) => getComputedStyle(button).display !== 'none'), true, 'Undo is visible on mobile');
+  ok(
+    await p.locator('#tpan').evaluate((button) => button.classList.contains('on')),
+    'Pan is the default touch tool'
+  );
+  eq(
+    await p.locator('#undo').evaluate((button) => getComputedStyle(button).display !== 'none'),
+    true,
+    'Undo is visible on mobile'
+  );
   ok(await p.isVisible('#sim'), 'simulation control remains available on phones');
   for (const width of [320, 375, 390, 448]) {
     await p.setViewportSize({ width, height: width === 320 ? 568 : 844 });
@@ -1332,7 +1380,11 @@ await test('phone layout has no sideways scrolling and a working bottom navigati
 });
 
 await test('touch Select tool uses a drag marquee and mobile Undo restores deleted selection', async () => {
-  const m = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const m = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true
+  });
   const p = await m.newPage();
   await p.goto(url);
   await p.waitForFunction(() => window.LogicLab);
@@ -1370,9 +1422,17 @@ await test('touch Select tool uses a drag marquee and mobile Undo restores delet
     dispatch('pointerup', end.x, end.y);
   }, selection);
   await p.keyboard.press('Delete');
-  eq(await p.evaluate(() => LogicLab.parts().length), selection.count - 1, 'touch marquee selects the enclosed part');
+  eq(
+    await p.evaluate(() => LogicLab.parts().length),
+    selection.count - 1,
+    'touch marquee selects the enclosed part'
+  );
   await p.click('#undo');
-  eq(await p.evaluate(() => LogicLab.parts().length), selection.count, 'mobile Undo restores the selected part');
+  eq(
+    await p.evaluate(() => LogicLab.parts().length),
+    selection.count,
+    'mobile Undo restores the selected part'
+  );
   await m.close();
 });
 
