@@ -8,7 +8,16 @@ import { makeDB } from './d1shim.mjs';
 import { onRequest } from '../functions/api/[[path]].js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
+const types = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webmanifest': 'application/manifest+json'
+};
 
 export function startApp(extraEnv = {}) {
   const env = { DB: makeDB(), JWT_SECRET: 'test-secret-'.repeat(4), ADMIN_SETUP_CODE: 'setup', ...extraEnv };
@@ -23,7 +32,11 @@ export function startApp(extraEnv = {}) {
         headers: req.headers,
         body: ['GET', 'HEAD'].includes(req.method) ? undefined : body
       });
-      const out = await onRequest({ request, env, params: { path: u.pathname.slice(5).split('/').filter(Boolean) } });
+      const out = await onRequest({
+        request,
+        env,
+        params: { path: u.pathname.slice(5).split('/').filter(Boolean) }
+      });
       const headers = {};
       out.headers.forEach((v, k) => (headers[k] = v));
       const sc = out.headers.getSetCookie ? out.headers.getSetCookie() : [];
@@ -43,7 +56,12 @@ export function startApp(extraEnv = {}) {
   });
   return new Promise((resolve) =>
     server.listen(0, '127.0.0.1', () =>
-      resolve({ env, server, url: 'http://127.0.0.1:' + server.address().port + '/', close: () => server.close() })
+      resolve({
+        env,
+        server,
+        url: 'http://127.0.0.1:' + server.address().port + '/',
+        close: () => server.close()
+      })
     )
   );
 }

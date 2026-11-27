@@ -149,7 +149,10 @@ await test('structured request returns tool/chat and exposes only expression act
   const request = calls.at(-1).body,
     userMessages = request.messages.filter((message) => message.role === 'user'),
     system = request.messages.find((message) => message.role === 'system').content;
-  eq(userMessages.map((message) => message.content), ['A+B']);
+  eq(
+    userMessages.map((message) => message.content),
+    ['A+B']
+  );
   ok(system.includes('Project name: AI test project'), 'project name is included');
   ok(system.includes('Mode: overwrite'), 'selected mode is included');
   ok(system.includes('Requested expression: A+B'), 'expression is included');

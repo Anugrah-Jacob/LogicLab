@@ -179,7 +179,13 @@ await test('the AI agent builds a circuit, checks it, and answers', async () => 
   eq(await page.evaluate(() => LogicLab.parts().length), 4);
   eq(calls.length, 1);
   eq(Object.keys(calls[0]).sort(), [
-    'chat_history', 'components', 'expression', 'message', 'mode', 'project_explanation', 'project_name'
+    'chat_history',
+    'components',
+    'expression',
+    'message',
+    'mode',
+    'project_explanation',
+    'project_name'
   ]);
   eq(calls[0].mode, 'overwrite');
   eq(calls[0].expression, '');

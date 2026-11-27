@@ -9,7 +9,10 @@ async function db(env) {
   if (!client) client = new MongoClient(env.MONGODB_URI, { maxPoolSize: 1, serverSelectionTimeoutMS: 8000 });
   const d = client.db(env.DB_NAME || 'logiclab');
   if (!ready) {
-    ready = Promise.all([d.collection('projects').createIndex({ updated: -1 }), d.collection('history').createIndex({ updated: -1 })]).catch(() => {});
+    ready = Promise.all([
+      d.collection('projects').createIndex({ updated: -1 }),
+      d.collection('history').createIndex({ updated: -1 })
+    ]).catch(() => {});
   }
   await ready;
   return d;

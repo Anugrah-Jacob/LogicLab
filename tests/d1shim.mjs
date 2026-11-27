@@ -10,7 +10,12 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export function makeDB(files) {
   const db = new DatabaseSync(':memory:');
   const dir = path.join(root, 'migrations');
-  const list = files || fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  const list =
+    files ||
+    fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort();
   for (const f of list) db.exec(fs.readFileSync(path.join(dir, f), 'utf8'));
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),

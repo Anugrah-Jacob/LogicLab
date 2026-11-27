@@ -34,7 +34,8 @@ const AI_MODES = {
   test: 'Focus on testing the current circuit. Inspect its inputs, outputs, truth table and simulation state, and report concrete results.',
   debug:
     'Focus on diagnosing the current circuit. Inspect its wiring, outputs, truth table and oscillation state; explain the root cause and only change the circuit when asked or when the request clearly asks for a fix.',
-  expression: 'Build the circuit represented by the raw Boolean expression in the only user message. Use the build_circuit tool.'
+  expression:
+    'Build the circuit represented by the raw Boolean expression in the only user message. Use the build_circuit tool.'
 };
 
 const TOOLS = [
@@ -143,7 +144,8 @@ The user message is the raw Boolean expression, not JSON. Interpret + as OR, * o
 const EXPRESSION_TOOLS = [
   {
     ...TOOLS[0],
-    description: 'Build a Boolean-expression circuit using only palette gates, switches, LEDs, and 7-segment displays.',
+    description:
+      'Build a Boolean-expression circuit using only palette gates, switches, LEDs, and 7-segment displays.',
     input_schema: {
       ...TOOLS[0].input_schema,
       properties: {
@@ -173,7 +175,8 @@ In read mode, answer in chat and never request a circuit change. In overwrite mo
 const ACTION_TOOLS = [
   {
     name: 'apply_expression',
-    description: 'Ask the app to create a wired circuit from a Boolean or sequential expression, such as A+B or MSDFF(D,CLK).',
+    description:
+      'Ask the app to create a wired circuit from a Boolean or sequential expression, such as A+B or MSDFF(D,CLK).',
     input_schema: {
       type: 'object',
       required: ['expression', 'mode'],
@@ -182,7 +185,8 @@ const ACTION_TOOLS = [
           type: 'string',
           minLength: 1,
           maxLength: 500,
-          description: 'Boolean formula or sequential form MSDFF(D,CLK), DFF(D,CLK), TFF(T,CLK), or JKFF(J,K,CLK).'
+          description:
+            'Boolean formula or sequential form MSDFF(D,CLK), DFF(D,CLK), TFF(T,CLK), or JKFF(J,K,CLK).'
         },
         mode: { type: 'string', enum: ['overwrite', 'append'] }
       }
@@ -700,7 +704,11 @@ export async function aiHandler(request, env, user) {
     'expression',
     'project_explanation'
   ];
-  if (!body || Object.keys(body).length !== fields.length || fields.some((field) => !Object.hasOwn(body, field)))
+  if (
+    !body ||
+    Object.keys(body).length !== fields.length ||
+    fields.some((field) => !Object.hasOwn(body, field))
+  )
     return fail(400, 'Invalid request.');
   if (
     !ACTION_MODES.has(body.mode) ||
@@ -720,11 +728,7 @@ export async function aiHandler(request, env, user) {
   if (body.project_name.length > 100 || body.project_explanation.length > 250000)
     return fail(413, 'Project context is too long.');
   for (const message of body.chat_history)
-    if (
-      !message ||
-      !['user', 'assistant'].includes(message.role) ||
-      typeof message.content !== 'string'
-    )
+    if (!message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string')
       return fail(400, 'Invalid chat history.');
   const messages = [...body.chat_history, { role: 'user', content: body.message }];
   if (JSON.stringify(messages).length > 500000)

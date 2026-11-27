@@ -27,21 +27,30 @@ await page.route('**/api/**', async (route) => {
         }
       });
     if (body.expression)
-      return route.fulfill({ json: { tool: { expression: body.expression, mode: body.mode }, chat: body.expression } });
+      return route.fulfill({
+        json: { tool: { expression: body.expression, mode: body.mode }, chat: body.expression }
+      });
     aiCalls++;
-    if (aiCalls <= 7)
-      return route.fulfill({ status: 502, json: { error: 'Temporary provider failure.' } });
+    if (aiCalls <= 7) return route.fulfill({ status: 502, json: { error: 'Temporary provider failure.' } });
     if (aiCalls === 8)
-      return route.fulfill({ json: { tool: { expression: 'A+B', mode: body.mode }, chat: 'Circuit built and the request continued.' } });
+      return route.fulfill({
+        json: {
+          tool: { expression: 'A+B', mode: body.mode },
+          chat: 'Circuit built and the request continued.'
+        }
+      });
     if (aiCalls === 9)
-      return route.fulfill({ json: { tool: { expression: 'A+B+C+D+E', mode: body.mode }, chat: 'The expression circuit is ready.' } });
+      return route.fulfill({
+        json: { tool: { expression: 'A+B+C+D+E', mode: body.mode }, chat: 'The expression circuit is ready.' }
+      });
     if (aiCalls === 10)
-      return route.fulfill({ json: { tool: { expression: 'A+B', mode: body.mode }, chat: 'The existing circuit was kept.' } });
+      return route.fulfill({
+        json: { tool: { expression: 'A+B', mode: body.mode }, chat: 'The existing circuit was kept.' }
+      });
     return route.fulfill({
       json: {
         tool: null,
-        chat:
-          '| Inputs | Sum | Cout |\n|-------|-----|------|\n| 000 | 0 | 0 |\n| 001 | 1 | 0 |\n\n### How it works\n1. **XOR A,B** → intermediate value.\n2. XOR with Cin → Sum output.\n\n### Next steps (optional)\n- Multi-bit adder\n- Ripple-carry adder'
+        chat: '| Inputs | Sum | Cout |\n|-------|-----|------|\n| 000 | 0 | 0 |\n| 001 | 1 | 0 |\n\n### How it works\n1. **XOR A,B** → intermediate value.\n2. XOR with Cin → Sum output.\n\n### Next steps (optional)\n- Multi-bit adder\n- Ripple-carry adder'
       }
     });
   }
@@ -98,7 +107,13 @@ await test('AI retries a structured request and applies the returned expression'
   );
   eq(requests[0].mode, 'overwrite');
   eq(Object.keys(requests[0]).sort(), [
-    'chat_history', 'components', 'expression', 'message', 'mode', 'project_explanation', 'project_name'
+    'chat_history',
+    'components',
+    'expression',
+    'message',
+    'mode',
+    'project_explanation',
+    'project_name'
   ]);
   eq(await page.locator('#am .bb.u').count(), 1, 'user message is not duplicated');
   eq(await page.locator('#am .bb.workflow').count(), 0, 'intermediate workflow details are hidden');
@@ -107,7 +122,11 @@ await test('AI retries a structured request and applies the returned expression'
     panel.width >= 320 && panel.width <= 460 && panel.height <= 720,
     'chat panel is compact and usable: ' + JSON.stringify(panel)
   );
-  eq(await page.locator('#aimode option').allInnerTexts(), ['Overwrite circuit', 'Append / add', 'Read only']);
+  eq(await page.locator('#aimode option').allInnerTexts(), [
+    'Overwrite circuit',
+    'Append / add',
+    'Read only'
+  ]);
   const firstChat = await page.locator('#am').innerText();
   ok(firstChat.includes('Circuit built and the request continued.'), firstChat);
   eq(await page.locator('#ai-provider-status').count(), 0, 'provider identity is hidden in the frontend');
@@ -123,7 +142,10 @@ await test('AI appends an expression using project explanation and components', 
   );
   eq(requests.at(-1).mode, 'append');
   ok(requests.at(-1).project_explanation.includes(':IN:"A"'), 'project explanation includes current inputs');
-  ok(requests.at(-1).components.some((component) => component.startsWith('AND:')), 'component inventory includes logic gates');
+  ok(
+    requests.at(-1).components.some((component) => component.startsWith('AND:')),
+    'component inventory includes logic gates'
+  );
   ok(
     requests.at(-1).project_explanation.includes('Truth table, input order'),
     'the AI receives the computed truth table when the input count permits it'
@@ -184,11 +206,19 @@ await test('expression builder sends only the raw expression and builds the retu
   const expression = 'A+B';
   await page.fill('#expression-input', expression);
   await page.click('#expression-form button[type="submit"]');
-  await page.waitForFunction(() => document.querySelector('#expression-status').textContent.includes('Built'));
+  await page.waitForFunction(() =>
+    document.querySelector('#expression-status').textContent.includes('Built')
+  );
 
   const request = requests.at(-1);
   eq(Object.keys(request).sort(), [
-    'chat_history', 'components', 'expression', 'message', 'mode', 'project_explanation', 'project_name'
+    'chat_history',
+    'components',
+    'expression',
+    'message',
+    'mode',
+    'project_explanation',
+    'project_name'
   ]);
   eq(request.mode, 'overwrite');
   eq(request.message, expression);
@@ -201,12 +231,11 @@ await test('expression builder sends only the raw expression and builds the retu
   const groupedExpression = "(A+B)*C'";
   await page.fill('#expression-input', groupedExpression);
   await page.click('#expression-form button[type="submit"]');
-  await page.waitForFunction(() => document.querySelector('#expression-status').textContent.includes('Built'));
-  eq(await page.evaluate(() => LogicLab.parts().length), 7);
-  eq(
-    await page.evaluate(() => LogicLab.analysis().rows.map((row) => row.o[0])),
-    [0, 0, 1, 0, 1, 0, 1, 0]
+  await page.waitForFunction(() =>
+    document.querySelector('#expression-status').textContent.includes('Built')
   );
+  eq(await page.evaluate(() => LogicLab.parts().length), 7);
+  eq(await page.evaluate(() => LogicLab.analysis().rows.map((row) => row.o[0])), [0, 0, 1, 0, 1, 0, 1, 0]);
 });
 
 await test('AI builds a working master-slave D flip-flop from a sequential expression', async () => {
@@ -222,8 +251,14 @@ await test('AI builds a working master-slave D flip-flop from a sequential expre
   eq(request.mode, 'overwrite');
   eq(request.expression, '');
   ok(flipFlop, 'a D flip-flop component is present');
-  ok(project.nodes.some((part) => part.type === 'CLK'), 'clock source is present');
-  eq(project.nodes.filter((part) => part.type === 'LED').map((part) => part.name), ['Q', 'Qbar']);
+  ok(
+    project.nodes.some((part) => part.type === 'CLK'),
+    'clock source is present'
+  );
+  eq(
+    project.nodes.filter((part) => part.type === 'LED').map((part) => part.name),
+    ['Q', 'Qbar']
+  );
   eq(project.wires.length, 4, 'data, clock, Q, and Qbar are all connected');
 
   await page.evaluate(() => {

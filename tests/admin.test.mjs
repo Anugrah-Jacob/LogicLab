@@ -265,7 +265,7 @@ await test('Groq and Gemini settings: validation, encrypted key, masking and con
 await test('AI requests from different users share one provider queue', async () => {
   mockDelayMs = 100;
   maxActiveMockRequests = 0;
-    const payload = aiPayload({ mode: 'overwrite', message: 'Reply with OK.' });
+  const payload = aiPayload({ mode: 'overwrite', message: 'Reply with OK.' });
   const responses = await Promise.all([admin.post('/ai', payload), bob.post('/ai', payload)]);
   mockDelayMs = 0;
   eq(
@@ -283,7 +283,7 @@ await test('Groq rate headers limit output and prevent requests over the shared 
     model: 'llama-3.3-70b-versatile'
   });
   const callsBefore = seen.length;
-    const tooLong = await bob.post('/ai', aiPayload({ project_explanation: 'x'.repeat(600000) }));
+  const tooLong = await bob.post('/ai', aiPayload({ project_explanation: 'x'.repeat(600000) }));
   eq(tooLong.status, 413, 'oversized conversation is rejected before contacting Groq');
   eq(seen.length, callsBefore);
 
@@ -295,14 +295,14 @@ await test('Groq rate headers limit output and prevent requests over the shared 
     'x-ratelimit-remaining-requests': '99',
     'x-ratelimit-reset-requests': '1d'
   };
-    const first = await bob.post('/ai', aiPayload({ message: 'Reply with OK.' }));
+  const first = await bob.post('/ai', aiPayload({ message: 'Reply with OK.' }));
   eq(first.status, 200);
   const providerRequest = seen.at(-1);
   ok(providerRequest.body.max_tokens <= 1024, 'Groq output is capped to the configured token budget');
   const callsAfterFirst = seen.length;
 
   mockResponseHeaders = {};
-    const blocked = await admin.post('/ai', aiPayload({ message: 'Reply with OK.' }));
+  const blocked = await admin.post('/ai', aiPayload({ message: 'Reply with OK.' }));
   eq(blocked.status, 429);
   ok(blocked.data.retryAfter > 0, 'response includes a retry delay');
   eq(seen.length, callsAfterFirst, 'the persisted Groq budget blocks the next call');
@@ -347,10 +347,14 @@ await test('the AI agent works through Groq via LangChain', async () => {
   await page.waitForFunction(() => document.querySelector('#am').innerText.includes('All done.'), null, {
     timeout: 20000
   });
-    eq(await page.evaluate(() => LogicLab.parts().length), 4, 'expression action builds a wired circuit locally');
+  eq(
+    await page.evaluate(() => LogicLab.parts().length),
+    4,
+    'expression action builds a wired circuit locally'
+  );
   const chats = seen.filter((r) => r.url === '/v1/chat/completions');
-    eq(chats.length, 1, 'one structured action response builds the circuit');
-    eq([chats[0].body.tools[0].function.name, chats[0].body.model], ['apply_expression', 'mock-model']);
+  eq(chats.length, 1, 'one structured action response builds the circuit');
+  eq([chats[0].body.tools[0].function.name, chats[0].body.model], ['apply_expression', 'mock-model']);
   eq(problems, []);
   if (app) await app.env.DB.prepare("DELETE FROM settings WHERE k LIKE 'ai_groq_rate_state:%'").run();
   await ctx.close();

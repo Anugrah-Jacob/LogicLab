@@ -24,7 +24,12 @@ export async function getProject(env, uid, id) {
     .first();
   if (!r) return fail(404, 'Not found');
   try {
-    return json({ id: r.id, name: r.name, updated: r.updated, doc: await readDoc(env, 'projects', uid + ':' + id, r.doc) });
+    return json({
+      id: r.id,
+      name: r.name,
+      updated: r.updated,
+      doc: await readDoc(env, 'projects', uid + ':' + id, r.doc)
+    });
   } catch (e) {
     console.log('project read failed', e.message);
     return fail(502, 'Could not read this project from storage.');
@@ -37,7 +42,12 @@ export async function loadProject(env, uid, id) {
     .bind(uid, id)
     .first();
   if (!r) return null;
-  return { id: r.id, name: r.name, updated: r.updated, doc: await readDoc(env, 'projects', uid + ':' + id, r.doc) };
+  return {
+    id: r.id,
+    name: r.name,
+    updated: r.updated,
+    doc: await readDoc(env, 'projects', uid + ':' + id, r.doc)
+  };
 }
 
 /**
@@ -45,7 +55,9 @@ export async function loadProject(env, uid, id) {
  * Returns false when the project no longer exists.
  */
 export async function saveProjectDoc(env, uid, id, { doc, name, by }) {
-  const row = await env.DB.prepare('SELECT doc, name FROM projects WHERE uid=? AND id=?').bind(uid, id).first();
+  const row = await env.DB.prepare('SELECT doc, name FROM projects WHERE uid=? AND id=?')
+    .bind(uid, id)
+    .first();
   if (!row) return false;
   const now = Date.now();
   const stored = await writeDoc(env, 'projects', uid + ':' + id, doc);
