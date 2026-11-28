@@ -113,6 +113,10 @@ await test('editor uses one workspace without a separate mode selector', async (
   ok(!(await pg.locator('#emode').count()), 'the mode selector is removed');
   ok(await pg.isVisible('#pal'), 'parts palette remains available');
   ok(await pg.isVisible('#dt'), 'drawing tools remain available');
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'default');
+  await pg.click('#tw');
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'default');
+  await pg.click('#tsel');
   ok(await pg.isVisible('#side .stabs'), 'analysis remains available');
   eq(await pg.locator('#tpal use').getAttribute('href'), '#icon-tool');
   eq(await pg.locator('#snp use').getAttribute('href'), '#icon-grid');

@@ -178,6 +178,7 @@ main {
   height: 100%;
   display: block;
   touch-action: none;
+  cursor: default;
 }
 main[data-n='1'] #pcb {
   display: none;
