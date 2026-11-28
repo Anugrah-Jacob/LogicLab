@@ -336,10 +336,14 @@ await test('parts can be resized and rotated with direct selection handles', asy
     };
   });
   await pg.mouse.click(box.x + clickAt.x, box.y + clickAt.y);
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'default');
   await pg.mouse.move(box.x + clickAt.rotate.x, box.y + clickAt.rotate.y);
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'grab');
   await pg.mouse.down();
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'grabbing');
   await pg.mouse.move(box.x + clickAt.rotate.x + 24, box.y + clickAt.rotate.y + 24);
   await pg.mouse.up();
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'default');
   const rotated = await pg.evaluate(() => LogicLab.exportProject().nodes.find((p) => p.type === 'XOR').rot);
   ok(rotated > 0, 'rotation handle should rotate the part');
   const newPoint = await pg.evaluate(() => {
@@ -363,6 +367,7 @@ await test('parts can be resized and rotated with direct selection handles', asy
     };
   });
   await pg.mouse.move(box.x + newPoint.x, box.y + newPoint.y);
+  eq(await pg.locator('#cv').evaluate((canvas) => getComputedStyle(canvas).cursor), 'default');
   await pg.mouse.down();
   await pg.mouse.move(box.x + newPoint.x + 35, box.y + newPoint.y + 24);
   await pg.mouse.up();

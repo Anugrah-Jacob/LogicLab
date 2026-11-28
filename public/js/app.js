@@ -4164,6 +4164,14 @@
       const r = c.getBoundingClientRect();
       return { x: (e.clientX - r.left - view.x) / view.s, y: (e.clientY - r.top - view.y) / view.s };
     };
+    const updateCursor = (p) => {
+      c.style.cursor =
+        !RO && tool == 'sel' && (handleDrag?.op == 'rotate' || (!handleDrag && handleAt(p)?.op == 'rotate'))
+          ? handleDrag
+            ? 'grabbing'
+            : 'grab'
+          : 'default';
+    };
     const contextTarget = (p) => {
       const n = nodeAt(p);
       if (n) return { kind: 'node', item: n };
@@ -4259,6 +4267,7 @@
             const b = nodeBounds(h.item);
             handleDrag.center = { x: (b[0] + b[2]) / 2, y: (b[1] + b[3]) / 2 };
           }
+          updateCursor(p);
           return;
         }
       }
@@ -4439,6 +4448,7 @@
         return;
       }
       const p = (mouse = pos(e));
+      updateCursor(p);
       if (touchHold && touchHold.pointerId == e.pointerId) {
         const distance = Math.hypot(e.clientX - touchHold.x, e.clientY - touchHold.y),
           target = contextTarget(p);
@@ -4574,6 +4584,7 @@
       }
       if (handleDrag) {
         handleDrag = null;
+        updateCursor(p);
         changed();
         return;
       }
@@ -4595,6 +4606,9 @@
       commit();
     };
     c.onpointercancel = c.onpointerup;
+    c.onpointerleave = () => {
+      if (!handleDrag) c.style.cursor = 'default';
+    };
     c.oncontextmenu = (e) => {
       e.preventDefault();
       if (RO || e.pointerType == 'touch') return;
