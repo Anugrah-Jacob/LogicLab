@@ -26,6 +26,11 @@ const parts = () => pg.evaluate(() => LogicLab.parts());
 /* ---- welcome screen ---- */
 await test('welcome screen shows the headline, templates, recents area and FAQ', async () => {
   ok(await pg.isVisible('#wl'), 'welcome visible');
+  eq(
+    await pg.evaluate(() => getComputedStyle(document.body).overflow),
+    'hidden',
+    'welcome has no outer page scrollbar'
+  );
   eq(await pg.locator('h1').first().innerText(), 'Build, Simulate & Learn\nDigital Circuits');
   const n = await pg.locator('.tc').count();
   ok(n === 38, 'expected 37 examples + blank card, got ' + n);
@@ -117,18 +122,137 @@ await test('editor uses one workspace without a separate mode selector', async (
   ok(await pg.locator('#expression-input').isVisible(), 'expression input is visible');
   await pg.click('#side .stabs button[data-t="c"]');
 });
-await test('freeform dragging button toggles grid snapping on and off', async () => {
+await test('snap-to-grid button toggles grid snapping and alignment guides', async () => {
   await pg.evaluate(() => LogicLab.load('half-adder'));
   const button = pg.locator('#snp');
-  eq(await button.getAttribute('aria-label'), 'Toggle freeform dragging');
-  eq(await button.getAttribute('aria-pressed'), 'false');
+  eq(await button.getAttribute('aria-label'), 'Snap to grid and alignment guides');
+  eq(await button.getAttribute('aria-pressed'), 'true');
   eq(await pg.evaluate(() => LogicLab.exportProject().snap), true);
   await button.click();
-  eq(await button.getAttribute('aria-pressed'), 'true');
+  eq(await button.getAttribute('aria-pressed'), 'false');
   eq(await pg.evaluate(() => LogicLab.exportProject().snap), false);
   await button.click();
-  eq(await button.getAttribute('aria-pressed'), 'false');
+  eq(await button.getAttribute('aria-pressed'), 'true');
   eq(await pg.evaluate(() => LogicLab.exportProject().snap), true);
+});
+await test('snap mode aligns dragged parts and displays alignment guides', async () => {
+  await pg.evaluate(() => {
+    LogicLab.build({
+      parts: [
+        { id: 'moving', type: 'NOT' },
+        { id: 'target', type: 'NOT' }
+      ]
+    });
+    const project = LogicLab.exportProject();
+    Object.assign(
+      project.nodes.find((node) => node.name === 'moving'),
+      { x: 100, y: 100 }
+    );
+    Object.assign(
+      project.nodes.find((node) => node.name === 'target'),
+      { x: 300, y: 196 }
+    );
+    LogicLab.importProject(project);
+  });
+  const box = await pg.locator('#cv').boundingBox();
+  const points = await pg.evaluate(() => {
+    const doc = LogicLab.exportProject(),
+      moving = doc.nodes.find((node) => node.name === 'moving'),
+      view = LogicLabHost.view().v;
+    return {
+      start: { x: view.x + (moving.x + 38) * view.s, y: view.y + (moving.y + 20) * view.s },
+      dy: 96 * view.s
+    };
+  });
+  await pg.mouse.move(box.x + points.start.x, box.y + points.start.y);
+  await pg.mouse.down();
+  await pg.mouse.move(box.x + points.start.x, box.y + points.start.y + points.dy, { steps: 8 });
+  await pg.waitForTimeout(80);
+  const result = await pg.evaluate(() => {
+    const canvas = document.querySelector('#cv'),
+      ctx = canvas.getContext('2d'),
+      rect = canvas.getBoundingClientRect(),
+      view = LogicLabHost.view().v,
+      node = LogicLab.exportProject().nodes.find((item) => item.name === 'moving'),
+      scaleX = canvas.width / rect.width,
+      scaleY = canvas.height / rect.height,
+      y = Math.round((view.y + 196 * view.s) * scaleY),
+      x0 = Math.round(20 * scaleX),
+      x1 = Math.round(60 * scaleX),
+      pixels = ctx.getImageData(x0, Math.max(0, y - 3), x1 - x0, 7).data;
+    return {
+      y: node.y,
+      visibleGuide: Array.from(pixels).some(
+        (_, i) => i % 4 === 0 && pixels[i] < 60 && pixels[i + 1] > 100 && pixels[i + 2] > 170
+      )
+    };
+  });
+  await pg.mouse.up();
+  eq(result.y, 196, 'drag aligns the part with the nearby part despite the grid');
+  ok(result.visibleGuide, 'alignment is shown with a visible guide line while dragging');
+});
+await test('arrow keys move the selected circuit and undo/redo the movement', async () => {
+  await pg.evaluate(() =>
+    LogicLab.build({
+      parts: [
+        { id: 'A', type: 'IN' },
+        { id: 'U1', type: 'NOT' },
+        { id: 'Y', type: 'LED' }
+      ],
+      wires: [
+        { from: 'A.0', to: 'U1.0' },
+        { from: 'U1.0', to: 'Y.0' }
+      ]
+    })
+  );
+  const before = await pg.evaluate(() => LogicLab.exportProject().nodes.map(({ x, y }) => ({ x, y })));
+  await pg.keyboard.press('Control+a');
+  await pg.keyboard.press('ArrowRight');
+  const right = await pg.evaluate(() => LogicLab.exportProject().nodes.map(({ x, y }) => ({ x, y })));
+  eq(
+    right.map((p, i) => p.x - before[i].x),
+    [12, 12, 12],
+    'right arrow moves every selected part one grid step'
+  );
+  eq(
+    right.map((p, i) => p.y - before[i].y),
+    [0, 0, 0],
+    'right arrow does not change vertical positions'
+  );
+  await pg.keyboard.press('Shift+ArrowDown');
+  const down = await pg.evaluate(() => LogicLab.exportProject().nodes.map(({ x, y }) => ({ x, y })));
+  eq(
+    down.map((p, i) => p.x - right[i].x),
+    [0, 0, 0],
+    'down arrow does not change horizontal positions'
+  );
+  eq(
+    down.map((p, i) => p.y - right[i].y),
+    [60, 60, 60],
+    'Shift+Arrow moves five grid steps'
+  );
+  await pg.keyboard.press('Control+z');
+  eq(
+    await pg.evaluate(() => LogicLab.exportProject().nodes.map(({ x, y }) => ({ x, y }))),
+    right,
+    'undo restores the prior positions'
+  );
+  await pg.keyboard.press('Control+Shift+z');
+  eq(
+    await pg.evaluate(() => LogicLab.exportProject().nodes.map(({ x, y }) => ({ x, y }))),
+    down,
+    'redo restores the nudge'
+  );
+});
+await test('editor hides the extra page scrollbar while panels retain their own scrolling', async () => {
+  await pg.setViewportSize({ width: 957, height: 719 });
+  const overflow = await pg.evaluate(() => ({
+    body: getComputedStyle(document.body).overflow,
+    panel: getComputedStyle(document.querySelector('#side')).overflowY
+  }));
+  eq(overflow.body, 'hidden', 'the editor should not add a page-level scrollbar');
+  eq(overflow.panel, 'auto', 'the properties panel should remain independently scrollable');
+  await pg.setViewportSize({ width: 1440, height: 900 });
 });
 await test('palette can build a four-input 7-segment display', async () => {
   await pg.evaluate(() => {
@@ -632,8 +756,8 @@ await test('Wire tool connects output and input with two clicks and ignores empt
     )
   );
   ok(
-    !doc.wires.find((w) => w.b === doc.nodes.find((n) => n.name === 'U2').id).bends,
-    'wire uses automatic routing'
+    doc.wires.find((w) => w.b === doc.nodes.find((n) => n.name === 'U2').id).bends?.length === 1,
+    'an empty-canvas click adds one saved route point'
   );
 });
 await test('Wire tool accepts clicks just outside visible pin markers', async () => {

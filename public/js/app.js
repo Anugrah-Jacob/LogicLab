@@ -216,6 +216,7 @@
     sel = new Set(),
     selW = null,
     pend = null,
+    guides = null,
     mouse = { x: 0, y: 0 },
     dirty = true,
     vcc = 5,
@@ -933,6 +934,23 @@
     if (!bb) {
       nDraw(x);
       drawSelectionHandles(x);
+    }
+    if (guides && guides.canvas === c) {
+      x.save();
+      x.strokeStyle = '#0ea5e9';
+      x.lineWidth = 1 / s;
+      x.setLineDash([6 / s, 4 / s]);
+      x.beginPath();
+      if (guides.x != null) {
+        x.moveTo(guides.x, y0);
+        x.lineTo(guides.x, y0 + r.height / s);
+      }
+      if (guides.y != null) {
+        x.moveTo(x0, guides.y);
+        x.lineTo(x0 + r.width / s, guides.y);
+      }
+      x.stroke();
+      x.restore();
     }
     if (marq) {
       x.fillStyle = '#ff6d5a22';
@@ -4288,7 +4306,11 @@
         else if (pend && wirePin) {
           link(pend.n, pend.i, wirePin.n, wirePin.i, pend.bends, pend.tap);
           pend = null;
-        } else if (!pend && !wirePin) {
+        } else if (pend && !pinHit(p)) {
+          const point = { x: gs(p.x), y: gs(p.y) },
+            previous = pend.bends[pend.bends.length - 1];
+          if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 1) pend.bends.push(point);
+        } else if (!pend && !wirePin && !pinHit(p)) {
           const branch = wirePoint(p),
             source = branch && idm.get(branch.w.a);
           if (source) pend = { n: source, i: branch.w.ap, bends: [], tap: { x: branch.x, y: branch.y } };
@@ -4464,6 +4486,54 @@
             if (r.mx != null) w.mx = r.mx + dx;
             if (r.my != null) w.my = r.my + dy;
           });
+          if (snapOn && sel.size) {
+            const movingBounds = selectionBounds([...sel].map((n) => ({ kind: 'node', item: n }))),
+              fixedBounds = nodes.filter((n) => !sel.has(n) && !n.hide).map(nodeBounds),
+              findAlignment = (axis) => {
+                if (!movingBounds || !fixedBounds.length) return null;
+                const moving =
+                    axis == 'x'
+                      ? [movingBounds[0], (movingBounds[0] + movingBounds[2]) / 2, movingBounds[2]]
+                      : [movingBounds[1], (movingBounds[1] + movingBounds[3]) / 2, movingBounds[3]],
+                  threshold = 8 / view.s;
+                let best = null;
+                fixedBounds.forEach((bounds) => {
+                  const fixed =
+                    axis == 'x'
+                      ? [bounds[0], (bounds[0] + bounds[2]) / 2, bounds[2]]
+                      : [bounds[1], (bounds[1] + bounds[3]) / 2, bounds[3]];
+                  moving.forEach((from) =>
+                    fixed.forEach((to) => {
+                      const delta = to - from;
+                      if (Math.abs(delta) <= threshold && (!best || Math.abs(delta) < Math.abs(best.delta)))
+                        best = { delta, guide: to };
+                    })
+                  );
+                });
+                return best;
+              },
+              ax = findAlignment('x'),
+              ay = findAlignment('y');
+            if (ax?.delta || ay?.delta) {
+              const dx = ax?.delta || 0,
+                dy = ay?.delta || 0;
+              drag.L.forEach(([n]) => {
+                n.x += dx;
+                n.y += dy;
+              });
+              (drag.N || []).forEach(([a]) => {
+                mvNote(a, { ...a, p: a.p && a.p.map((point) => [...point]) }, dx, dy);
+              });
+              (drag.W || []).forEach(([w]) => {
+                if (w.bends) w.bends = w.bends.map((point) => ({ x: point.x + dx, y: point.y + dy }));
+                if (w.via) w.via = { x: w.via.x + dx, y: w.via.y + dy };
+                if (w.tap) w.tap = { x: w.tap.x + dx, y: w.tap.y + dy };
+                if (w.mx != null) w.mx += dx;
+                if (w.my != null) w.my += dy;
+              });
+            }
+            guides = ax || ay ? { canvas: c, x: ax?.guide ?? null, y: ay?.guide ?? null } : null;
+          } else guides = null;
         }
       }
       if (marq) {
@@ -4520,6 +4590,7 @@
         changed();
       }
       if (marq) changed();
+      guides = null;
       drag = marq = pan = hd = null;
       commit();
     };
@@ -4556,12 +4627,39 @@
     },
     true
   );
+  function nudgeSelection(dx, dy) {
+    if (!sel.size && !selN.size) return false;
+    const ids = new Set([...sel].map((n) => n.id));
+    sel.forEach((n) => {
+      n.x = gs(n.x + dx);
+      n.y = gs(n.y + dy);
+    });
+    selN.forEach((a) => mvNote(a, { ...a, p: a.p && a.p.map((p) => [...p]) }, dx, dy));
+    wires
+      .filter(
+        (w) => ids.has(w.a) && ids.has(w.b) && (w.bends || w.via || w.tap || w.mx != null || w.my != null)
+      )
+      .forEach((w) => {
+        if (w.bends) w.bends = w.bends.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+        if (w.via) w.via = { x: w.via.x + dx, y: w.via.y + dy };
+        if (w.tap) w.tap = { x: w.tap.x + dx, y: w.tap.y + dy };
+        if (w.mx != null) w.mx += dx;
+        if (w.my != null) w.my += dy;
+      });
+    changed();
+    return true;
+  }
   onkeydown = (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     if (RO) return;
     const k = e.key.toLowerCase(),
       m = e.ctrlKey || e.metaKey;
-    if (m && k == 'z') {
+    if (!m && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+      const step = (snapOn ? 12 : 1) * (e.shiftKey ? 5 : 1),
+        dx = k == 'arrowleft' ? -step : k == 'arrowright' ? step : 0,
+        dy = k == 'arrowup' ? -step : k == 'arrowdown' ? step : 0;
+      if (nudgeSelection(dx, dy)) e.preventDefault();
+    } else if (m && k == 'z') {
       e.preventDefault();
       e.shiftKey ? redo() : undo();
     } else if (m && k == 'c') {
@@ -5567,15 +5665,15 @@
     if (HOOK.commit) HOOK.commit();
   };
   $('#insp').onchange = () => commit();
-  function setFreeform(on) {
-    snapOn = !on;
+  function setSnapToGrid(on) {
+    snapOn = on;
     const button = $('#snp');
-    button.classList.toggle('on', on);
-    button.setAttribute('aria-pressed', String(on));
-    button.title = `Freeform dragging ${on ? 'on' : 'off'} (grid snapping ${on ? 'off' : 'on'})`;
+    button.classList.toggle('on', snapOn);
+    button.setAttribute('aria-pressed', String(snapOn));
+    button.title = `Snap to grid and alignment guides ${snapOn ? 'on' : 'off'}`;
   }
-  $('#snp').onclick = () => setFreeform(snapOn);
-  setFreeform(!snapOn);
+  $('#snp').onclick = () => setSnapToGrid(!snapOn);
+  setSnapToGrid(snapOn);
   addEventListener('dragover', (e) => e.preventDefault());
   addEventListener('drop', (e) => {
     e.preventDefault();
@@ -6182,7 +6280,7 @@
     $('#spd').value = sps;
     $('#wz').value = win;
     $('#mdl').value = RV ? 1 : 0;
-    setFreeform(!snapOn);
+    setSnapToGrid(snapOn);
     cur = '';
     restore(d, 0);
     pname = d.name || nm || 'Untitled';

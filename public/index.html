@@ -116,7 +116,7 @@
         }
       ]
     </script>
-    <link rel="stylesheet" href="css/app.css?v=8c159deb0638" />
+    <link rel="stylesheet" href="css/app.css?v=0168adb30daf" />
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
@@ -326,12 +326,12 @@
             aria-label="Pan"
           >
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-pan" /></svg></button
-          ><button id="tw" title="Click an output, then an input to connect" aria-label="Wire">
+          ><button id="tw" title="Click an output, optional points on the canvas, then an input to connect" aria-label="Wire">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-wire" /></svg></button
           ><button id="tpal" class="on" title="Show or hide parts" aria-label="Show or hide parts">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-tool" /></svg></button
           ><button id="tan" class="on" title="Show or hide analysis">◧</button
-          ><button id="snp" title="Freeform dragging off (grid snapping on)" aria-label="Toggle freeform dragging" aria-pressed="false">
+          ><button id="snp" title="Snap to grid and alignment guides on" aria-label="Snap to grid and alignment guides" aria-pressed="true">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-grid" /></svg></button
           ><button id="tsc" class="on" title="Show or hide waveforms">∿</button>
         </div>
@@ -385,8 +385,8 @@
           <div id="an"></div>
         </div>
         <p class="mu">
-          Drag output pin → input pin to wire, or use Wire to place multiple bends. Right-click or long-press for actions. Shift-click adds
-          to the selection. Ctrl+G groups, Ctrl+Z / Ctrl+Shift+Z undo / redo, Ctrl+S saves.
+          Drag output pin → input pin to wire, or use Wire, clicking empty canvas to add route points. Right-click or long-press for
+          actions. Shift-click adds to the selection. Ctrl+G groups, Ctrl+Z / Ctrl+Shift+Z undo / redo, Ctrl+S saves.
         </p>
       </aside>
     </main>
@@ -688,6 +688,10 @@
             <td>Delete selection</td>
           </tr>
           <tr>
+            <td>Arrow keys / Shift + Arrow</td>
+            <td>Move selection one grid step / five grid steps</td>
+          </tr>
+          <tr>
             <td>Alt + click</td>
             <td>Pick one part inside a group</td>
           </tr>
@@ -760,11 +764,11 @@
       ><button data-n="ai" class="fab" aria-label="LogicLab AI">✦</button><button data-n="wave"><span>∿</span>Waveform</button
       ><button data-n="side"><span>⋯</span>More</button>
     </nav>
-    <script defer src="js/config.js?v=8c159deb0638"></script>
-    <script defer src="js/examples.js?v=8c159deb0638"></script>
-    <script defer src="js/ads.js?v=8c159deb0638"></script>
-    <script defer src="js/app.js?v=8c159deb0638"></script>
-    <script defer src="js/merge.js?v=8c159deb0638"></script>
-    <script defer src="js/collab.js?v=8c159deb0638"></script>
+    <script defer src="js/config.js?v=0168adb30daf"></script>
+    <script defer src="js/examples.js?v=0168adb30daf"></script>
+    <script defer src="js/ads.js?v=0168adb30daf"></script>
+    <script defer src="js/app.js?v=0168adb30daf"></script>
+    <script defer src="js/merge.js?v=0168adb30daf"></script>
+    <script defer src="js/collab.js?v=0168adb30daf"></script>
   </body>
 </html>
